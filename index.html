@@ -1,61 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple Move Square Game</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #222;
-    }
-    #game {
-      width: 400px;
-      height: 400px;
-      background: #444;
-      margin: 20px auto;
-      position: relative;
-    }
-    #player {
-      width: 40px;
-      height: 40px;
-      background: red;
-      position: absolute;
-      top: 180px;
-      left: 180px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hex Grid Turn & Phase Prototype</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #222;
+    color: white;
+    text-align: center;
+  }
+  #game {
+    margin: 20px auto;
+    width: 600px;
+  }
+  #hexGrid {
+    display: flex;
+    flex-wrap: wrap;
+    width: 420px; /* 7 hexes wide approx */
+    margin: 20px auto;
+  }
+  .hex {
+    width: 60px;
+    height: 52px; /* hex height ~ sqrt(3)/2 * width */
+    background-color: #555;
+    margin: 2px;
+    clip-path: polygon(
+      25% 0%, 75% 0%, 
+      100% 50%, 75% 100%, 
+      25% 100%, 0% 50%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  .hex.player1 { background-color: #3498db; }
+  .hex.player2 { background-color: #e74c3c; }
+  .hex.base { border: 2px solid gold; }
+  #info {
+    margin-top: 20px;
+  }
+  button {
+    padding: 8px 16px;
+    margin: 10px 5px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+</style>
 </head>
 <body>
-  <div id="game">
-    <div id="player"></div>
+
+<div id="game">
+  <h1>Hex Grid Turn & Phase Prototype</h1>
+  
+  <div id="hexGrid"></div>
+  
+  <div id="info">
+    <div><strong>Current Player:</strong> <span id="currentPlayer">Player 1</span></div>
+    <div><strong>Current Phase:</strong> <span id="currentPhase">Resource Phase</span></div>
+    <button id="nextPhaseBtn">Next Phase</button>
+    <button id="nextPlayerBtn" disabled>Next Player</button>
   </div>
+</div>
 
-  <script>
-    const player = document.getElementById('player');
-    let x = 180;
-    let y = 180;
-    const speed = 10;
+<script>
+  // Basic setup
+  const players = ['Player 1', 'Player 2'];
+  const phases = [
+    'Resource Phase',
+    'Build Phase',
+    'Move Phase',
+    'Combat Phase',
+    'Capture Phase',
+    'End Turn'
+  ];
+  
+  let currentPlayerIndex = 0;
+  let currentPhaseIndex = 0;
 
-    window.addEventListener('keydown', (e) => {
-      switch (e.key) {
-        case 'ArrowUp':
-          y = Math.max(0, y - speed);
-          break;
-        case 'ArrowDown':
-          y = Math.min(360, y + speed);
-          break;
-        case 'ArrowLeft':
-          x = Math.max(0, x - speed);
-          break;
-        case 'ArrowRight':
-          x = Math.min(360, x + speed);
-          break;
+  const hexGridEl = document.getElementById('hexGrid');
+  const currentPlayerEl = document.getElementById('currentPlayer');
+  const currentPhaseEl = document.getElementById('currentPhase');
+  const nextPhaseBtn = document.getElementById('nextPhaseBtn');
+  const nextPlayerBtn = document.getElementById('nextPlayerBtn');
+
+  // Create hex grid: 5 rows of 7 hexes (35 hexes total)
+  const rows = 5;
+  const cols = 7;
+  const hexes = [];
+
+  for(let r=0; r<rows; r++) {
+    for(let c=0; c<cols; c++) {
+      const hex = document.createElement('div');
+      hex.classList.add('hex');
+
+      // Offset every other row for hex pattern
+      hex.style.marginLeft = (r % 2 === 1) ? '30px' : '2px';
+
+      // Simple ownership assignment for demo
+      if (r === 0 && c < 3) hex.classList.add('player1');
+      if (r === rows-1 && c > 3) hex.classList.add('player2');
+      
+      // Mark bases for each player in center hex of their territory
+      if ((r === 0 && c === 1) || (r === rows-1 && c === 5)) {
+        hex.classList.add('base');
+        hex.textContent = 'Base';
       }
-      player.style.top = y + 'px';
-      player.style.left = x + 'px';
-    });
-  </script>
+
+      hex.dataset.row = r;
+      hex.dataset.col = c;
+      hexes.push(hex);
+      hexGridEl.appendChild(hex);
+    }
+  }
+
+  function updateUI() {
+    currentPlayerEl.textContent = players[currentPlayerIndex];
+    currentPhaseEl.textContent = phases[currentPhaseIndex];
+
+    // Enable Next Player button only on End Turn phase
+    nextPlayerBtn.disabled = (phases[currentPhaseIndex] !== 'End Turn');
+    nextPhaseBtn.disabled = (phases[currentPhaseIndex] === 'End Turn');
+  }
+
+  nextPhaseBtn.addEventListener('click', () => {
+    currentPhaseIndex++;
+    if (currentPhaseIndex >= phases.length) {
+      currentPhaseIndex = 0;
+    }
+    updateUI();
+  });
+
+  nextPlayerBtn.addEventListener('click', () => {
+    currentPlayerIndex++;
+    if (currentPlayerIndex >= players.length) {
+      currentPlayerIndex = 0;
+    }
+    currentPhaseIndex = 0;
+    updateUI();
+  });
+
+  updateUI();
+</script>
+
 </body>
 </html>
