@@ -3,148 +3,94 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Hex Grid Turn & Phase Prototype</title>
+<title>Hex-Shaped Hex Map Demo</title>
 <style>
   body {
-    font-family: Arial, sans-serif;
     background: #222;
     color: white;
     text-align: center;
+    font-family: Arial, sans-serif;
   }
-  #game {
+  #canvas {
+    background: #333;
     margin: 20px auto;
-    width: 600px;
-  }
-  #hexGrid {
-    display: flex;
-    flex-wrap: wrap;
-    width: 420px; /* 7 hexes wide approx */
-    margin: 20px auto;
-  }
-  .hex {
-    width: 60px;
-    height: 52px; /* hex height ~ sqrt(3)/2 * width */
-    background-color: #555;
-    margin: 2px;
-    clip-path: polygon(
-      25% 0%, 75% 0%, 
-      100% 50%, 75% 100%, 
-      25% 100%, 0% 50%
-    );
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .hex.player1 { background-color: #3498db; }
-  .hex.player2 { background-color: #e74c3c; }
-  .hex.base { border: 2px solid gold; }
-  #info {
-    margin-top: 20px;
-  }
-  button {
-    padding: 8px 16px;
-    margin: 10px 5px;
-    font-size: 16px;
-    cursor: pointer;
+    display: block;
+    border-radius: 8px;
   }
 </style>
 </head>
 <body>
 
-<div id="game">
-  <h1>Hex Grid Turn & Phase Prototype</h1>
-  
-  <div id="hexGrid"></div>
-  
-  <div id="info">
-    <div><strong>Current Player:</strong> <span id="currentPlayer">Player 1</span></div>
-    <div><strong>Current Phase:</strong> <span id="currentPhase">Resource Phase</span></div>
-    <button id="nextPhaseBtn">Next Phase</button>
-    <button id="nextPlayerBtn" disabled>Next Player</button>
-  </div>
-</div>
+<h1>Hex-Shaped Map Demo</h1>
+<canvas id="canvas" width="800" height="700"></canvas>
 
 <script>
-  // Basic setup
-  const players = ['Player 1', 'Player 2'];
-  const phases = [
-    'Resource Phase',
-    'Build Phase',
-    'Move Phase',
-    'Combat Phase',
-    'Capture Phase',
-    'End Turn'
-  ];
-  
-  let currentPlayerIndex = 0;
-  let currentPhaseIndex = 0;
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-  const hexGridEl = document.getElementById('hexGrid');
-  const currentPlayerEl = document.getElementById('currentPlayer');
-  const currentPhaseEl = document.getElementById('currentPhase');
-  const nextPhaseBtn = document.getElementById('nextPhaseBtn');
-  const nextPlayerBtn = document.getElementById('nextPlayerBtn');
+  const hexSize = 30; // radius of hex (corner to center)
+  const mapRadius = 5; // size of the big hex map
 
-  // Create hex grid: 5 rows of 7 hexes (35 hexes total)
-  const rows = 5;
-  const cols = 7;
-  const hexes = [];
+  // Calculate pixel position for flat-top hex using axial coords q, r
+  // x = hexSize * 3/2 * q
+  // y = hexSize * sqrt(3) * (r + q/2)
+  function hexToPixel(q, r) {
+    const x = hexSize * 3/2 * q;
+    const y = hexSize * Math.sqrt(3) * (r + q/2);
+    return {x, y};
+  }
 
-  for(let r=0; r<rows; r++) {
-    for(let c=0; c<cols; c++) {
-      const hex = document.createElement('div');
-      hex.classList.add('hex');
+  // Draw a flat-top hex at pixel x,y
+  function drawHex(x, y, fillColor, strokeColor) {
+    ctx.beginPath();
+    for(let i=0; i<6; i++) {
+      const angle_deg = 60 * i;
+      const angle_rad = Math.PI / 180 * angle_deg;
+      const px = x + hexSize * Math.cos(angle_rad);
+      const py = y + hexSize * Math.sin(angle_rad);
+      if(i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-      // Offset every other row for hex pattern
-      hex.style.marginLeft = (r % 2 === 1) ? '30px' : '2px';
+  // Check if axial coords (q, r, s) are inside hex radius
+  // s = -q - r (cube coord)
+  // Condition: max(|q|, |r|, |s|) <= mapRadius
+  function isInMap(q, r) {
+    const s = -q - r;
+    return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= mapRadius;
+  }
 
-      // Simple ownership assignment for demo
-      if (r === 0 && c < 3) hex.classList.add('player1');
-      if (r === rows-1 && c > 3) hex.classList.add('player2');
-      
-      // Mark bases for each player in center hex of their territory
-      if ((r === 0 && c === 1) || (r === rows-1 && c === 5)) {
-        hex.classList.add('base');
-        hex.textContent = 'Base';
+  // Center offset so map is centered in canvas
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+
+  // Draw the hex map
+  for(let q = -mapRadius; q <= mapRadius; q++) {
+    for(let r = -mapRadius; r <= mapRadius; r++) {
+      if(isInMap(q, r)) {
+        const {x, y} = hexToPixel(q, r);
+        // Offset to center
+        const px = centerX + x;
+        const py = centerY + y;
+
+        // Choose color based on position for fun pattern
+        let fill = '#666';
+        if (q === 0 && r === 0) fill = '#f39c12'; // center hex special
+        else if ((q + r) % 3 === 0) fill = '#2980b9';
+        else if ((q + r) % 3 === 1) fill = '#27ae60';
+        else fill = '#8e44ad';
+
+        drawHex(px, py, fill, '#222');
       }
-
-      hex.dataset.row = r;
-      hex.dataset.col = c;
-      hexes.push(hex);
-      hexGridEl.appendChild(hex);
     }
   }
-
-  function updateUI() {
-    currentPlayerEl.textContent = players[currentPlayerIndex];
-    currentPhaseEl.textContent = phases[currentPhaseIndex];
-
-    // Enable Next Player button only on End Turn phase
-    nextPlayerBtn.disabled = (phases[currentPhaseIndex] !== 'End Turn');
-    nextPhaseBtn.disabled = (phases[currentPhaseIndex] === 'End Turn');
-  }
-
-  nextPhaseBtn.addEventListener('click', () => {
-    currentPhaseIndex++;
-    if (currentPhaseIndex >= phases.length) {
-      currentPhaseIndex = 0;
-    }
-    updateUI();
-  });
-
-  nextPlayerBtn.addEventListener('click', () => {
-    currentPlayerIndex++;
-    if (currentPlayerIndex >= players.length) {
-      currentPlayerIndex = 0;
-    }
-    currentPhaseIndex = 0;
-    updateUI();
-  });
-
-  updateUI();
 </script>
 
 </body>
