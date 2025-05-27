@@ -1,120 +1,261 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hex Game Setup</title>
-  <style>
-    body {
-      background: #222;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
-    #controls {
-      margin: 20px;
-    }
-    select, button {
-      font-size: 18px;
-      padding: 8px;
-      margin: 10px;
-    }
-    canvas {
-      background: #333;
-      display: block;
-      margin: 0 auto;
-      border-radius: 8px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hex Conquest - Multi Screen Setup</title>
+<style>
+  body {
+    margin: 0; padding: 0; background: #222; color: white;
+    font-family: Arial, sans-serif;
+    user-select: none;
+  }
+  #container {
+    max-width: 960px;
+    margin: 20px auto;
+    text-align: center;
+  }
+  button {
+    background: #3498db;
+    border: none;
+    padding: 12px 24px;
+    margin: 10px;
+    font-size: 18px;
+    color: white;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  button:hover {
+    background: #2980b9;
+  }
+  .hidden { display: none; }
+
+  /* Player Setup Inputs */
+  .player-input {
+    margin: 10px auto;
+    max-width: 400px;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
+  }
+  .player-input input[type="text"] {
+    flex: 1;
+    font-size: 16px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: none;
+  }
+  .color-picker {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    border: 2px solid #fff;
+    cursor: pointer;
+  }
+
+  /* Canvas */
+  canvas {
+    background: #333;
+    display: block;
+    margin: 20px auto;
+    border-radius: 8px;
+    border: 2px solid #555;
+  }
+</style>
 </head>
 <body>
-  <h1>Hex Conquest - Game Setup</h1>
-  <div id="controls">
+<div id="container">
+
+  <!-- MAIN MENU -->
+  <div id="mainMenu">
+    <h1>Hex Conquest</h1>
+    <button onclick="showScreen('setup')">Start Game</button>
+    <button onclick="showScreen('instructions')">Instructions</button>
+    <button onclick="showScreen('skins')">Skins</button>
+  </div>
+
+  <!-- INSTRUCTIONS -->
+  <div id="instructions" class="hidden">
+    <h2>Instructions</h2>
+    <p>Conquer hex territories! Each player starts with a base.</p>
+    <p>Use turns or phases to build, move, and fight.</p>
+    <button onclick="showScreen('mainMenu')">Back to Menu</button>
+  </div>
+
+  <!-- SKINS -->
+  <div id="skins" class="hidden">
+    <h2>Choose Board Skin (Coming Soon!)</h2>
+    <p>More skins to be added later.</p>
+    <button onclick="showScreen('mainMenu')">Back to Menu</button>
+  </div>
+
+  <!-- PLAYER SETUP -->
+  <div id="setup" class="hidden">
+    <h2>Setup Players</h2>
     <label for="playerCount">Number of Players:</label>
-    <select id="playerCount">
-      <option value="2">2</option>
+    <select id="playerCount" onchange="renderPlayerInputs()">
+      <option value="2" selected>2</option>
       <option value="3">3</option>
       <option value="4">4</option>
     </select>
+
+    <div id="playerInputs"></div>
+
     <button onclick="startGame()">Start Game</button>
+    <button onclick="showScreen('mainMenu')">Back to Menu</button>
   </div>
-  <canvas id="canvas" width="900" height="800"></canvas>
 
-  <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const hexSize = 30;
+  <!-- GAME -->
+  <div id="game" class="hidden">
+    <h2>Hex Map</h2>
+    <canvas id="canvas" width="900" height="800"></canvas>
+    <button onclick="showScreen('mainMenu')">Exit to Menu</button>
+  </div>
 
-    function startGame() {
-      const playerCount = parseInt(document.getElementById('playerCount').value);
-      let mapRadius = 5;
-      if (playerCount === 3) mapRadius = 6;
-      if (playerCount === 4) mapRadius = 7;
+</div>
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+<script>
+  const screens = ['mainMenu', 'instructions', 'skins', 'setup', 'game'];
+  const container = document.getElementById('container');
+  const playerInputsDiv = document.getElementById('playerInputs');
 
-      drawHexMap(mapRadius);
-      placeStartingBases(playerCount, mapRadius);
+  // Player data defaults
+  let players = [];
+  const defaultColors = ['#3498db', '#e74c3c', '#27ae60', '#f1c40f'];
+
+  function showScreen(name) {
+    screens.forEach(screen => {
+      document.getElementById(screen).classList.toggle('hidden', screen !== name);
+    });
+  }
+
+  // Create inputs for player names and colors dynamically
+  function renderPlayerInputs() {
+    const count = parseInt(document.getElementById('playerCount').value);
+    players = [];
+    playerInputsDiv.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const div = document.createElement('div');
+      div.classList.add('player-input');
+
+      const label = document.createElement('label');
+      label.textContent = `Player ${i+1} Name: `;
+      label.style.minWidth = '90px';
+      label.style.color = defaultColors[i];
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = `Player ${i+1}`;
+      input.id = `playerName${i}`;
+
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = defaultColors[i];
+      colorInput.id = `playerColor${i}`;
+      colorInput.classList.add('color-picker');
+
+      div.appendChild(label);
+      div.appendChild(input);
+      div.appendChild(colorInput);
+
+      playerInputsDiv.appendChild(div);
+
+      players.push({
+        nameInput: input,
+        colorInput: colorInput,
+        name: input.value,
+        color: colorInput.value
+      });
+
+      // Update players array on input change
+      input.addEventListener('input', () => {
+        players[i].name = input.value;
+      });
+      colorInput.addEventListener('input', () => {
+        players[i].color = colorInput.value;
+        label.style.color = colorInput.value;
+      });
     }
+  }
 
-    function hexToPixel(q, r) {
-      const x = hexSize * 3/2 * q;
-      const y = hexSize * Math.sqrt(3) * (r + q/2);
-      return {x, y};
+  // Initial render
+  renderPlayerInputs();
+
+  // Canvas and Hex map logic from before:
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const hexSize = 30;
+
+  function hexToPixel(q, r) {
+    const x = hexSize * 3/2 * q;
+    const y = hexSize * Math.sqrt(3) * (r + q/2);
+    return {x, y};
+  }
+
+  function drawHex(x, y, fillColor, strokeColor) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 180 * (60 * i);
+      const px = x + hexSize * Math.cos(angle);
+      const py = y + hexSize * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
     }
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-    function drawHex(x, y, fillColor, strokeColor) {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = Math.PI / 180 * (60 * i);
-        const px = x + hexSize * Math.cos(angle);
-        const py = y + hexSize * Math.sin(angle);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
+  function isInMap(q, r, radius) {
+    const s = -q - r;
+    return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
+  }
 
-    function isInMap(q, r, radius) {
-      const s = -q - r;
-      return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
-    }
-
-    function drawHexMap(radius) {
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      for (let q = -radius; q <= radius; q++) {
-        for (let r = -radius; r <= radius; r++) {
-          if (isInMap(q, r, radius)) {
-            const {x, y} = hexToPixel(q, r);
-            drawHex(centerX + x, centerY + y, '#555', '#222');
-          }
+  function drawHexMap(radius) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let q = -radius; q <= radius; q++) {
+      for (let r = -radius; r <= radius; r++) {
+        if (isInMap(q, r, radius)) {
+          const {x, y} = hexToPixel(q, r);
+          drawHex(centerX + x, centerY + y, '#555', '#222');
         }
       }
     }
+  }
 
-    function placeStartingBases(players, radius) {
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const angleOffset = Math.PI * 2 / players;
-      const playerColors = ['#3498db', '#e74c3c', '#27ae60', '#f1c40f'];
+  function placeStartingBases(playersCount, radius) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const angleOffset = Math.PI * 2 / playersCount;
 
-      for (let i = 0; i < players; i++) {
-        const angle = angleOffset * i;
-        const q = Math.round(radius * Math.cos(angle));
-        const r = Math.round(radius * Math.sin(angle));
-        const {x, y} = hexToPixel(q, r);
-        drawHex(centerX + x, centerY + y, playerColors[i], '#fff');
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 14px Arial';
-        ctx.fillText('Base', centerX + x - 18, centerY + y + 5);
-      }
+    for (let i = 0; i < playersCount; i++) {
+      const angle = angleOffset * i;
+      const q = Math.round(radius * Math.cos(angle));
+      const r = Math.round(radius * Math.sin(angle));
+      const {x, y} = hexToPixel(q, r);
+      const player = players[i];
+      drawHex(centerX + x, centerY + y, player.color, '#fff');
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('Base', centerX + x - 18, centerY + y + 5);
     }
-  </script>
+  }
+
+  // Start game from setup screen
+  function startGame() {
+    const count = parseInt(document.getElementById('playerCount').value);
+    if (count !== players.length) renderPlayerInputs();
+    showScreen('game');
+    let mapRadius = 5;
+    if (count === 3) mapRadius = 6;
+    else if (count === 4) mapRadius = 7;
+
+    drawHexMap(mapRadius);
+    placeStartingBases(count, mapRadius);
+  }
+</script>
 </body>
 </html>
