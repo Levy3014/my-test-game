@@ -6,10 +6,7 @@
 <title>Hex Conquest</title>
 <style>
   body {
-    margin: 0;
-    padding: 0;
-    background: #222;
-    color: white;
+    margin: 0; padding: 0; background: #222; color: white;
     font-family: Arial, sans-serif;
     user-select: none;
   }
@@ -31,16 +28,12 @@
   button:hover {
     background: #2980b9;
   }
-  .hidden {
-    display: none;
-  }
+  .hidden { display: none; }
+
   .player-input {
     margin: 10px auto;
     max-width: 400px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
   }
   .player-input input[type="text"] {
     flex: 1;
@@ -63,17 +56,6 @@
     border-radius: 8px;
     border: 2px solid #555;
   }
-  #sidebar {
-    background: #1e1e1e;
-    color: white;
-    padding: 10px;
-    border-radius: 8px;
-    max-width: 300px;
-    margin: 0 auto;
-  }
-  .tile-info {
-    margin-top: 10px;
-  }
 </style>
 </head>
 <body>
@@ -88,7 +70,7 @@
   <div id="instructions" class="hidden">
     <h2>Instructions</h2>
     <p>Conquer hex territories! Each player starts with a base.</p>
-    <p>Use phases to build, move, and fight. Earn and spend resources wisely.</p>
+    <p>Use turns or phases to build, move, and fight.</p>
     <button onclick="showScreen('mainMenu')">Back to Menu</button>
   </div>
 
@@ -114,34 +96,187 @@
   <div id="game" class="hidden">
     <h2>Hex Map</h2>
     <canvas id="canvas" width="900" height="800"></canvas>
-    <div id="sidebar">
-      <h3>Tile Info</h3>
-      <div class="tile-info" id="tileDetails">Click a tile to view.</div>
-      <h3>Resources</h3>
-      <p>Gold: <span id="gold">100</span></p>
-      <h3>Shop</h3>
-      <button onclick="buyBuilding('Mine', 50)">Build Mine (50g)</button>
-      <button onclick="buyBuilding('Barracks', 75)">Build Barracks (75g)</button>
-    </div>
     <button onclick="showScreen('mainMenu')">Exit to Menu</button>
   </div>
 </div>
 
 <script>
-let selectedTile = null;
-let gold = 100;
-function updateGoldDisplay() {
-  document.getElementById('gold').textContent = gold;
+const screens = ['mainMenu', 'instructions', 'skins', 'setup', 'game'];
+function showScreen(name) {
+  screens.forEach(screen => {
+    const el = document.getElementById(screen);
+    if (el) el.classList.toggle('hidden', screen !== name);
+  });
 }
-function buyBuilding(type, cost) {
-  if (!selectedTile || selectedTile.structure || selectedTile.owner !== null) return;
-  if (gold >= cost) {
-    gold -= cost;
-    selectedTile.structure = type;
-    selectedTile.color = '#4CAF50';
-    drawHexMap(mapRadius);
-    updateGoldDisplay();
+
+const playerInputsDiv = document.getElementById('playerInputs');
+let players = [];
+const defaultColors = ['#3498db', '#e74c3c', '#27ae60', '#f1c40f'];
+const hexMap = [];
+
+function renderPlayerInputs() {
+  const count = parseInt(document.getElementById('playerCount').value);
+  players = [];
+  playerInputsDiv.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const div = document.createElement('div');
+    div.classList.add('player-input');
+
+    const label = document.createElement('label');
+    label.textContent = `Player ${i+1} Name:`;
+    label.style.minWidth = '90px';
+    label.style.color = defaultColors[i];
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = `Player ${i+1}`;
+    input.id = `playerName${i}`;
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = defaultColors[i];
+    colorInput.id = `playerColor${i}`;
+    colorInput.classList.add('color-picker');
+
+    div.appendChild(label);
+    div.appendChild(input);
+    div.appendChild(colorInput);
+
+    playerInputsDiv.appendChild(div);
+
+    players.push({
+      nameInput: input,
+      colorInput: colorInput,
+      name: input.value,
+      color: colorInput.value
+    });
+
+    input.addEventListener('input', () => players[i].name = input.value);
+    colorInput.addEventListener('input', () => {
+      players[i].color = colorInput.value;
+      label.style.color = colorInput.value;
+    });
   }
+}
+
+renderPlayerInputs();
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const hexSize = 30;
+
+function hexToPixel(q, r) {
+  const x = hexSize * 3/2 * q;
+  const y = hexSize * Math.sqrt(3) * (r + q/2);
+  return {x, y};
+}
+
+function pixelToHex(x, y) {
+  const q = (2/3 * x) / hexSize;
+  const r = (-1/3 * x + Math.sqrt(3)/3 * y) / hexSize;
+  return hexRound(q, r);
+}
+
+function hexRound(q, r) {
+  let s = -q - r;
+  let rq = Math.round(q);
+  let rr = Math.round(r);
+  let rs = Math.round(s);
+
+  const q_diff = Math.abs(rq - q);
+  const r_diff = Math.abs(rr - r);
+  const s_diff = Math.abs(rs - s);
+
+  if (q_diff > r_diff && q_diff > s_diff) rq = -rr - rs;
+  else if (r_diff > s_diff) rr = -rq - rs;
+  return { q: rq, r: rr };
+}
+
+function drawHex(x, y, fillColor, strokeColor) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i);
+    const px = x + hexSize * Math.cos(angle);
+    const py = y + hexSize * Math.sin(angle);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function isInMap(q, r, radius) {
+  const s = -q - r;
+  return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
+}
+
+function drawHexMap(radius) {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hexMap.length = 0;
+
+  for (let q = -radius; q <= radius; q++) {
+    for (let r = -radius; r <= radius; r++) {
+      if (isInMap(q, r, radius)) {
+        const {x, y} = hexToPixel(q, r);
+        hexMap.push({ q, r, x: centerX + x, y: centerY + y, color: '#555', owner: null });
+        drawHex(centerX + x, centerY + y, '#555', '#222');
+      }
+    }
+  }
+}
+
+function placeStartingBases(playersCount, radius) {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const directions = [
+    {q: 0, r: -radius},
+    {q: radius, r: 0},
+    {q: 0, r: radius},
+    {q: -radius, r: 0}
+  ];
+
+  for (let i = 0; i < playersCount; i++) {
+    const pos = directions[i];
+    const {x, y} = hexToPixel(pos.q, pos.r);
+    drawHex(centerX + x, centerY + y, players[i].color, '#fff');
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText('Base', centerX + x - 18, centerY + y + 5);
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const {q, r} = pixelToHex(x - centerX, y - centerY);
+
+  const hex = hexMap.find(h => h.q === q && h.r === r);
+  if (hex) {
+    hex.color = '#88f';
+    drawHexMap(document.getElementById('playerCount').value == 4 ? 7 : 6);
+    placeStartingBases(players.length, document.getElementById('playerCount').value == 4 ? 7 : 6);
+    drawHex(hex.x, hex.y, hex.color, '#fff');
+  }
+});
+
+function startGame() {
+  const count = parseInt(document.getElementById('playerCount').value);
+  if (count !== players.length) renderPlayerInputs();
+  showScreen('game');
+  let mapRadius = 5;
+  if (count === 3) mapRadius = 6;
+  else if (count === 4) mapRadius = 7;
+  drawHexMap(mapRadius);
+  placeStartingBases(count, mapRadius);
 }
 </script>
 </body>
