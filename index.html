@@ -3,281 +3,385 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Hex Conquest</title>
+<title>Hex Conquest - Expanded</title>
 <style>
   body {
     margin: 0; padding: 0; background: #222; color: white;
     font-family: Arial, sans-serif;
     user-select: none;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
   }
   #container {
-    max-width: 960px;
-    margin: 20px auto;
-    text-align: center;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 900px;
+    margin: 0 auto;
+    user-select: none;
+  }
+  canvas {
+    background: #333;
+    border-radius: 8px;
+    border: 2px solid #555;
+    flex: 1;
+  }
+  #sidebar {
+    width: 300px;
+    background: #111;
+    padding: 20px;
+    box-sizing: border-box;
+    border-left: 2px solid #444;
+    display: flex;
+    flex-direction: column;
   }
   button {
     background: #3498db;
     border: none;
-    padding: 12px 24px;
-    margin: 10px;
-    font-size: 18px;
+    padding: 10px 20px;
+    margin: 8px 0;
+    font-size: 16px;
     color: white;
     cursor: pointer;
     border-radius: 6px;
   }
-  button:hover {
-    background: #2980b9;
+  button:disabled {
+    background: #555;
+    cursor: not-allowed;
   }
-  .hidden { display: none; }
-
-  .player-input {
-    margin: 10px auto;
-    max-width: 400px;
-    display: flex; justify-content: center; align-items: center; gap: 10px;
+  h2, h3 {
+    margin: 10px 0 5px 0;
   }
-  .player-input input[type="text"] {
-    flex: 1;
-    font-size: 16px;
+  #tooltip {
+    position: absolute;
+    background: #222;
+    color: #eee;
+    border: 1px solid #555;
     padding: 6px 8px;
     border-radius: 4px;
-    border: none;
+    pointer-events: none;
+    font-size: 14px;
+    visibility: hidden;
+    max-width: 200px;
+    z-index: 10;
   }
-  .color-picker {
-    width: 30px;
-    height: 30px;
-    border-radius: 4px;
-    border: 2px solid #fff;
-    cursor: pointer;
+  #playerInfo {
+    margin-bottom: 10px;
   }
-  canvas {
-    background: #333;
-    display: block;
-    margin: 20px auto;
-    border-radius: 8px;
-    border: 2px solid #555;
+  .unit-icon {
+    display: inline-block;
+    width: 20px; height: 20px;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .unit-icon.soldier {
+    background: url('https://img.icons8.com/ios-filled/50/ffffff/soldier-helmet.png') no-repeat center center;
+    background-size: contain;
+  }
+  .unit-icon.fort {
+    background: url('https://img.icons8.com/ios-filled/50/ffffff/castle.png') no-repeat center center;
+    background-size: contain;
+  }
+  #phaseDisplay {
+    margin-bottom: 15px;
+    font-weight: bold;
+    font-size: 18px;
+  }
+  #moneyDisplay {
+    margin-bottom: 15px;
+  }
+  #shop {
+    border-top: 1px solid #444;
+    padding-top: 15px;
+    flex-grow: 1;
+  }
+  #shop button {
+    width: 100%;
   }
 </style>
 </head>
 <body>
+
 <div id="container">
-  <div id="mainMenu">
-    <h1>Hex Conquest</h1>
-    <button onclick="showScreen('setup')">Start Game</button>
-    <button onclick="showScreen('instructions')">Instructions</button>
-    <button onclick="showScreen('skins')">Skins</button>
-  </div>
+  <canvas id="canvas" width="900" height="800"></canvas>
+  <div id="tooltip"></div>
+</div>
 
-  <div id="instructions" class="hidden">
-    <h2>Instructions</h2>
-    <p>Conquer hex territories! Each player starts with a base.</p>
-    <p>Use turns or phases to build, move, and fight.</p>
-    <button onclick="showScreen('mainMenu')">Back to Menu</button>
+<div id="sidebar">
+  <div id="playerInfo"></div>
+  <div id="moneyDisplay"></div>
+  <div id="phaseDisplay"></div>
+  
+  <div id="shop">
+    <h3>Shop</h3>
+    <button id="buySoldier" disabled>Buy Soldier (10 Gold)</button>
+    <button id="buildFort" disabled>Build Fort (20 Gold)</button>
   </div>
-
-  <div id="skins" class="hidden">
-    <h2>Choose Board Skin (Coming Soon!)</h2>
-    <p>More skins to be added later.</p>
-    <button onclick="showScreen('mainMenu')">Back to Menu</button>
-  </div>
-
-  <div id="setup" class="hidden">
-    <h2>Setup Players</h2>
-    <label for="playerCount">Number of Players:</label>
-    <select id="playerCount" onchange="renderPlayerInputs()">
-      <option value="2" selected>2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-    </select>
-    <div id="playerInputs"></div>
-    <button onclick="startGame()">Start Game</button>
-    <button onclick="showScreen('mainMenu')">Back to Menu</button>
-  </div>
-
-  <div id="game" class="hidden">
-    <h2>Hex Map</h2>
-    <canvas id="canvas" width="900" height="800"></canvas>
-    <button onclick="showScreen('mainMenu')">Exit to Menu</button>
-  </div>
+  
+  <button id="endTurnBtn" disabled>End Turn</button>
 </div>
 
 <script>
-const screens = ['mainMenu', 'instructions', 'skins', 'setup', 'game'];
-function showScreen(name) {
-  screens.forEach(screen => {
-    const el = document.getElementById(screen);
-    if (el) el.classList.toggle('hidden', screen !== name);
-  });
-}
+  // Basic setup
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('tooltip');
+  const playerInfoDiv = document.getElementById('playerInfo');
+  const moneyDisplay = document.getElementById('moneyDisplay');
+  const phaseDisplay = document.getElementById('phaseDisplay');
+  const buySoldierBtn = document.getElementById('buySoldier');
+  const buildFortBtn = document.getElementById('buildFort');
+  const endTurnBtn = document.getElementById('endTurnBtn');
 
-const playerInputsDiv = document.getElementById('playerInputs');
-let players = [];
-const defaultColors = ['#3498db', '#e74c3c', '#27ae60', '#f1c40f'];
-const hexMap = [];
+  const hexSize = 30;
+  const mapRadius = 6;
 
-function renderPlayerInputs() {
-  const count = parseInt(document.getElementById('playerCount').value);
-  players = [];
-  playerInputsDiv.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const div = document.createElement('div');
-    div.classList.add('player-input');
+  // Game State
+  let players = [
+    { id: 0, name: 'Player 1', color: '#3498db', money: 50, bases: [], units: [] },
+    { id: 1, name: 'Player 2', color: '#e74c3c', money: 50, bases: [], units: [] },
+  ];
+  let currentPlayerIndex = 0;
 
-    const label = document.createElement('label');
-    label.textContent = `Player ${i+1} Name:`;
-    label.style.minWidth = '90px';
-    label.style.color = defaultColors[i];
+  const phases = ['Resource', 'Build', 'Move', 'Combat', 'Capture'];
+  let currentPhaseIndex = 0;
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = `Player ${i+1}`;
-    input.id = `playerName${i}`;
+  // Hex Map Data
+  let hexMap = [];
 
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = defaultColors[i];
-    colorInput.id = `playerColor${i}`;
-    colorInput.classList.add('color-picker');
-
-    div.appendChild(label);
-    div.appendChild(input);
-    div.appendChild(colorInput);
-
-    playerInputsDiv.appendChild(div);
-
-    players.push({
-      nameInput: input,
-      colorInput: colorInput,
-      name: input.value,
-      color: colorInput.value
-    });
-
-    input.addEventListener('input', () => players[i].name = input.value);
-    colorInput.addEventListener('input', () => {
-      players[i].color = colorInput.value;
-      label.style.color = colorInput.value;
-    });
+  function hexToPixel(q, r) {
+    const x = hexSize * 3/2 * q;
+    const y = hexSize * Math.sqrt(3) * (r + q/2);
+    return {x, y};
   }
-}
 
-renderPlayerInputs();
-
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const hexSize = 30;
-
-function hexToPixel(q, r) {
-  const x = hexSize * 3/2 * q;
-  const y = hexSize * Math.sqrt(3) * (r + q/2);
-  return {x, y};
-}
-
-function pixelToHex(x, y) {
-  const q = (2/3 * x) / hexSize;
-  const r = (-1/3 * x + Math.sqrt(3)/3 * y) / hexSize;
-  return hexRound(q, r);
-}
-
-function hexRound(q, r) {
-  let s = -q - r;
-  let rq = Math.round(q);
-  let rr = Math.round(r);
-  let rs = Math.round(s);
-
-  const q_diff = Math.abs(rq - q);
-  const r_diff = Math.abs(rr - r);
-  const s_diff = Math.abs(rs - s);
-
-  if (q_diff > r_diff && q_diff > s_diff) rq = -rr - rs;
-  else if (r_diff > s_diff) rr = -rq - rs;
-  return { q: rq, r: rr };
-}
-
-function drawHex(x, y, fillColor, strokeColor) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 180 * (60 * i);
-    const px = x + hexSize * Math.cos(angle);
-    const py = y + hexSize * Math.sin(angle);
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  function drawHex(x, y, fillColor, strokeColor) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 180 * (60 * i);
+      const px = x + hexSize * Math.cos(angle);
+      const py = y + hexSize * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
-  ctx.closePath();
-  ctx.fillStyle = fillColor;
-  ctx.fill();
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
 
-function isInMap(q, r, radius) {
-  const s = -q - r;
-  return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
-}
+  function isInMap(q, r, radius) {
+    const s = -q - r;
+    return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
+  }
 
-function drawHexMap(radius) {
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  hexMap.length = 0;
+  function drawMap() {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hexMap = [];
 
-  for (let q = -radius; q <= radius; q++) {
-    for (let r = -radius; r <= radius; r++) {
-      if (isInMap(q, r, radius)) {
-        const {x, y} = hexToPixel(q, r);
-        hexMap.push({ q, r, x: centerX + x, y: centerY + y, color: '#555', owner: null });
-        drawHex(centerX + x, centerY + y, '#555', '#222');
+    for(let q = -mapRadius; q <= mapRadius; q++) {
+      for(let r = -mapRadius; r <= mapRadius; r++) {
+        if(isInMap(q, r, mapRadius)) {
+          const {x, y} = hexToPixel(q, r);
+          const pixelX = centerX + x;
+          const pixelY = centerY + y;
+          hexMap.push({
+            q, r,
+            x: pixelX,
+            y: pixelY,
+            owner: null,
+            base: false,
+            units: [],
+            structure: null, // 'fort'
+            resource: Math.random() < 0.15 ? 5 : 0, // random small resource chance
+          });
+          drawHex(pixelX, pixelY, '#555', '#222');
+        }
       }
     }
   }
-}
 
-function placeStartingBases(playersCount, radius) {
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const directions = [
-    {q: 0, r: -radius},
-    {q: radius, r: 0},
-    {q: 0, r: radius},
-    {q: -radius, r: 0}
-  ];
-
-  for (let i = 0; i < playersCount; i++) {
-    const pos = directions[i];
-    const {x, y} = hexToPixel(pos.q, pos.r);
-    drawHex(centerX + x, centerY + y, players[i].color, '#fff');
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 14px Arial';
-    ctx.fillText('Base', centerX + x - 18, centerY + y + 5);
+  function placeBases() {
+    const basePositions = [
+      {q: 0, r: -mapRadius},
+      {q: mapRadius, r: 0},
+      {q: 0, r: mapRadius},
+      {q: -mapRadius, r: 0}
+    ];
+    players.forEach((player, i) => {
+      const pos = basePositions[i];
+      const tile = hexMap.find(h => h.q === pos.q && h.r === pos.r);
+      if(tile) {
+        tile.owner = player.id;
+        tile.base = true;
+        player.bases.push(tile);
+      }
+    });
   }
-}
 
-canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const {q, r} = pixelToHex(x - centerX, y - centerY);
-
-  const hex = hexMap.find(h => h.q === q && h.r === r);
-  if (hex) {
-    hex.color = '#88f';
-    drawHexMap(document.getElementById('playerCount').value == 4 ? 7 : 6);
-    placeStartingBases(players.length, document.getElementById('playerCount').value == 4 ? 7 : 6);
-    drawHex(hex.x, hex.y, hex.color, '#fff');
+  // Draw units and structures as icons
+  function drawUnitsAndStructures() {
+    hexMap.forEach(tile => {
+      if(tile.units.length > 0) {
+        tile.units.forEach((unit, idx) => {
+          // Draw soldier icon (circle)
+          ctx.beginPath();
+          ctx.fillStyle = players[unit.owner].color;
+          const offsetX = tile.x + (idx * 10) - 10;
+          const offsetY = tile.y + 15;
+          ctx.arc(offsetX, offsetY, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.stroke();
+        });
+      }
+      if(tile.structure === 'fort') {
+        // Draw fort icon (square)
+        ctx.fillStyle = '#aaa';
+        ctx.fillRect(tile.x - 10, tile.y - 20, 20, 10);
+        ctx.strokeStyle = '#000';
+        ctx.strokeRect(tile.x - 10, tile.y - 20, 20, 10);
+      }
+    });
   }
-});
 
-function startGame() {
-  const count = parseInt(document.getElementById('playerCount').value);
-  if (count !== players.length) renderPlayerInputs();
-  showScreen('game');
-  let mapRadius = 5;
-  if (count === 3) mapRadius = 6;
-  else if (count === 4) mapRadius = 7;
-  drawHexMap(mapRadius);
-  placeStartingBases(count, mapRadius);
-}
+  // UI updates
+  function updateUI() {
+    const player = players[currentPlayerIndex];
+    playerInfoDiv.textContent = `${player.name} (${player.color})`;
+    moneyDisplay.textContent = `Gold: ${player.money}`;
+    phaseDisplay.textContent = `Phase: ${phases[currentPhaseIndex]}`;
+    
+    // Enable/disable buttons depending on phase
+    buySoldierBtn.disabled = !(phases[currentPhaseIndex] === 'Build' && player.money >= 10);
+    buildFortBtn.disabled = !(phases[currentPhaseIndex] === 'Build' && player.money >= 20);
+    endTurnBtn.disabled = false;
+  }
+
+  // Get tile under mouse
+  function getTileAtPosition(x, y) {
+    for(const tile of hexMap) {
+      const dx = x - tile.x;
+      const dy = y - tile.y;
+      // simple circle hit test for hex center with some margin
+      if(Math.sqrt(dx*dx + dy*dy) < hexSize) {
+        return tile;
+      }
+    }
+    return null;
+  }
+
+  // Handle canvas mouse move to show tooltip
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const tile = getTileAtPosition(mouseX, mouseY);
+
+    if(tile) {
+      tooltip.style.left = (e.clientX + 15) + 'px';
+      tooltip.style.top = (e.clientY + 15) + 'px';
+      tooltip.style.visibility = 'visible';
+      tooltip.innerHTML = `
+        <b>Tile [${tile.q},${tile.r}]</b><br/>
+        Owner: ${tile.owner !== null ? players[tile.owner].name : 'None'}<br/>
+        Base: ${tile.base ? 'Yes' : 'No'}<br/>
+        Structure: ${tile.structure ? tile.structure : 'None'}<br/>
+        Units: ${tile.units.length}<br/>
+        Resources: ${tile.resource}
+      `;
+    } else {
+      tooltip.style.visibility = 'hidden';
+    }
+  });
+
+  // Hide tooltip when mouse leaves canvas
+  canvas.addEventListener('mouseleave', () => {
+    tooltip.style.visibility = 'hidden';
+  });
+
+  // Click handler for buying/building on selected tile
+  let selectedTile = null;
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const tile = getTileAtPosition(mouseX, mouseY);
+    if(tile) {
+      selectedTile = tile;
+      drawMap();
+      drawUnitsAndStructures();
+
+      // Highlight selected tile
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for(let i=0; i<6; i++) {
+        const angle = Math.PI / 180 * (60 * i);
+        const px = tile.x + hexSize * Math.cos(angle);
+        const py = tile.y + hexSize * Math.sin(angle);
+        if(i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      updateUI();
+    }
+  });
+
+  // Buy soldier button
+  buySoldierBtn.addEventListener('click', () => {
+    const player = players[currentPlayerIndex];
+    if(selectedTile && selectedTile.owner === player.id && player.money >= 10) {
+      selectedTile.units.push({owner: player.id, type: 'soldier'});
+      player.money -= 10;
+      updateUI();
+      drawMap();
+      drawUnitsAndStructures();
+    }
+  });
+
+  // Build fort button
+  buildFortBtn.addEventListener('click', () => {
+    const player = players[currentPlayerIndex];
+    if(selectedTile && selectedTile.owner === player.id && !selectedTile.structure && player.money >= 20) {
+      selectedTile.structure = 'fort';
+      player.money -= 20;
+      updateUI();
+      drawMap();
+      drawUnitsAndStructures();
+    }
+  });
+
+  // End turn logic
+  endTurnBtn.addEventListener('click', () => {
+    // Advance phase or player
+    currentPhaseIndex++;
+    if(currentPhaseIndex >= phases.length) {
+      currentPhaseIndex = 0;
+      currentPlayerIndex++;
+      if(currentPlayerIndex >= players.length) currentPlayerIndex = 0;
+      // Simple resource gain each new turn
+      players[currentPlayerIndex].money += 15;
+    }
+    selectedTile = null;
+    drawMap();
+    drawUnitsAndStructures();
+    updateUI();
+  });
+
+  // Initial setup
+  drawMap();
+  placeBases();
+  drawUnitsAndStructures();
+  updateUI();
 </script>
+
 </body>
 </html>
