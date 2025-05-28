@@ -3,15 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Hex Conquest - Expanded</title>
+<title>Hex Conquest - Expanded with Title Screen & Camera</title>
 <style>
-  body {
-    margin: 0; padding: 0; background: #222; color: white;
+  body, html {
+    margin: 0; padding: 0; height: 100%; background: #222; color: white;
     font-family: Arial, sans-serif;
     user-select: none;
+    overflow: hidden;
+  }
+  #app {
     display: flex;
     height: 100vh;
-    overflow: hidden;
   }
   #container {
     flex: 1;
@@ -20,12 +22,14 @@
     max-width: 900px;
     margin: 0 auto;
     user-select: none;
+    position: relative;
   }
   canvas {
     background: #333;
     border-radius: 8px;
     border: 2px solid #555;
     flex: 1;
+    display: block;
   }
   #sidebar {
     width: 300px;
@@ -99,194 +103,623 @@
   #shop button {
     width: 100%;
   }
+  /* Update label top-left */
+  #updateLabel {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.7);
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 14px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  /* Title Screen */
+  #titleScreen {
+    position: fixed;
+    inset: 0;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  #titleScreen h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+    user-select: none;
+  }
+  #titleScreen > div {
+    margin-bottom: 20px;
+    width: 300px;
+  }
+  #titleScreen label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+  }
+  #titleScreen select, #titleScreen input {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: none;
+  }
+  #titleScreen button {
+    background: #2ecc71;
+    font-weight: bold;
+    font-size: 18px;
+    margin-top: 10px;
+  }
+  /* Themes */
+  body.theme-dark {
+    background: #222;
+    color: white;
+  }
+  body.theme-light {
+    background: #eee;
+    color: #222;
+  }
+  body.theme-light canvas {
+    background: #ddd;
+    border-color: #aaa;
+  }
+  body.theme-light #sidebar {
+    background: #fafafa;
+    color: #222;
+    border-left: 2px solid #ccc;
+  }
+  body.theme-light button {
+    background: #3498db;
+    color: white;
+  }
+  /* Highlight selected tile border */
+  .selectedHighlight {
+    pointer-events: none;
+  }
 </style>
 </head>
-<body>
+<body class="theme-dark">
 
-<div id="container">
-  <canvas id="canvas" width="900" height="800"></canvas>
-  <div id="tooltip"></div>
+<div id="updateLabel">Update: Added Camera Panning & Zoom</div>
+
+<div id="app">
+  <div id="container">
+    <canvas id="canvas" width="900" height="800"></canvas>
+    <div id="tooltip"></div>
+  </div>
+  
+  <div id="sidebar">
+    <div id="playerInfo"></div>
+    <div id="moneyDisplay"></div>
+    <div id="phaseDisplay"></div>
+    
+    <div id="shop">
+      <h3>Shop</h3>
+      <button id="buySoldier" disabled>Buy Soldier (10 Gold)</button>
+      <button id="buildFort" disabled>Build Fort (20 Gold)</button>
+    </div>
+    
+    <button id="endTurnBtn" disabled>End Turn</button>
+  </div>
 </div>
 
-<div id="sidebar">
-  <div id="playerInfo"></div>
-  <div id="moneyDisplay"></div>
-  <div id="phaseDisplay"></div>
-
-  <div id="shop">
-    <h3>Shop</h3>
-    <button id="buySoldier" disabled>Buy Soldier (10 Gold)</button>
-    <button id="buildFort" disabled>Build Fort (20 Gold)</button>
+<!-- Title Screen -->
+<div id="titleScreen">
+  <h1>Hex Conquest</h1>
+  <div>
+    <label for="playerCount">Number of Players</label>
+    <select id="playerCount">
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
   </div>
-
-  <button id="endTurnBtn" disabled>End Turn</button>
+  <div id="playerNamesContainer">
+    <label>Player Names</label>
+    <input type="text" value="Player 1" class="playerName" />
+    <input type="text" value="Player 2" class="playerName" />
+  </div>
+  <div>
+    <label for="themeSelect">Theme / Skin</label>
+    <select id="themeSelect">
+      <option value="dark" selected>Dark</option>
+      <option value="light">Light</option>
+    </select>
+  </div>
+  <div>
+    <label>Instructions</label>
+    <div style="font-size:14px; max-height:150px; overflow-y:auto; background:#222; padding:8px; border-radius:6px; border: 1px solid #555;">
+      <p><b>Phases:</b> Resource → Build → Move → Combat → Capture</p>
+      <p>Select your base tiles to build soldiers or forts in the Build phase.</p>
+      <p>Use mouse drag to pan the map, scroll wheel to zoom.</p>
+      <p>Click tiles to select, units and structures will appear on tiles.</p>
+      <p>End turn button advances phase and players.</p>
+    </div>
+  </div>
+  <button id="startGameBtn">Start Game</button>
 </div>
 
 <script>
-// GAME STATE VARIABLES
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const tooltip = document.getElementById('tooltip');
-const playerInfo = document.getElementById('playerInfo');
-const moneyDisplay = document.getElementById('moneyDisplay');
-const phaseDisplay = document.getElementById('phaseDisplay');
-const endTurnBtn = document.getElementById('endTurnBtn');
-const buySoldierBtn = document.getElementById('buySoldier');
-const buildFortBtn = document.getElementById('buildFort');
+  // Canvas and UI elements
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('tooltip');
+  const playerInfoDiv = document.getElementById('playerInfo');
+  const moneyDisplay = document.getElementById('moneyDisplay');
+  const phaseDisplay = document.getElementById('phaseDisplay');
+  const buySoldierBtn = document.getElementById('buySoldier');
+  const buildFortBtn = document.getElementById('buildFort');
+  const endTurnBtn = document.getElementById('endTurnBtn');
+  const updateLabel = document.getElementById('updateLabel');
 
-const hexRadius = 40;
-const hexHeight = Math.sqrt(3) * hexRadius;
-const gridCols = 10;
-const gridRows = 10;
+  // Title screen elements
+  const titleScreen = document.getElementById('titleScreen');
+  const playerCountSelect = document.getElementById('playerCount');
+  const playerNamesContainer = document.getElementById('playerNamesContainer');
+  const themeSelect = document.getElementById('themeSelect');
+  const startGameBtn = document.getElementById('startGameBtn');
 
-let currentPlayerIndex = 0;
-let currentPhase = 'placement'; // 'placement', 'action', 'end'
+  // Constants for hex grid
+  const baseHexSize = 30;
+  const mapRadius = 6; // big hexagon radius
 
-let players = [
-  { id: 1, name: 'Player 1', color: '#f00', money: 20, tiles: [], soldiers: [], forts: [] },
-  { id: 2, name: 'Player 2', color: '#0f0', money: 20, tiles: [], soldiers: [], forts: [] },
-];
+  // Game state variables
+  let players = [];
+  let currentPlayerIndex = 0;
+  const phases = ['Resource', 'Build', 'Move', 'Combat', 'Capture'];
+  let currentPhaseIndex = 0;
+  let hexMap = [];
 
-let hexes = [];
+  // Camera state
+  let camera = {
+    x: 0, 
+    y: 0,
+    zoom: 1,
+    minZoom: 0.5,
+    maxZoom: 2,
+  };
 
-function createHexGrid() {
-  hexes = [];
-  for (let row = 0; row < gridRows; row++) {
-    for (let col = 0; col < gridCols; col++) {
-      const x = col * 1.5 * hexRadius + 60;
-      const y = row * hexHeight + (col % 2 === 0 ? 60 : 60 + hexHeight / 2);
-      hexes.push({
-        x, y, col, row,
-        owner: null,
-        soldier: null,
-        fort: false,
+  // Track dragging state
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
+  let cameraStart = { x: 0, y: 0 };
+
+  // Selected tile for highlighting
+  let selectedTile = null;
+
+  // Utility: axial to pixel
+  function hexToPixel(q, r, size) {
+    const x = size * Math.sqrt(3) * (q + r/2);
+    const y = size * 3/2 * r;
+    return {x, y};
+  }
+
+  // Utility: pixel to axial
+  function pixelToHex(x, y, size) {
+    const q = (Math.sqrt(3)/3 * x - 1/3 * y) / size;
+    const r = (2/3 * y) / size;
+    return hexRound(q, r);
+  }
+
+  // Round axial coords to nearest hex
+  function hexRound(q, r) {
+    let x = q;
+    let z = r;
+    let y = -x - z;
+
+    let rx = Math.round(x);
+    let ry = Math.round(y);
+    let rz = Math.round(z);
+
+    const x_diff = Math.abs(rx - x);
+    const y_diff = Math.abs(ry - y);
+    const z_diff = Math.abs(rz - z);
+
+    if (x_diff > y_diff && x_diff > z_diff) {
+      rx = -ry - rz;
+    } else if (y_diff > z_diff) {
+      ry = -rx - rz;
+    } else {
+      rz = -rx - ry;
+    }
+    return {q: rx, r: rz};
+  }
+
+  // Generate hex map with axial coords in a large hex shape
+  function generateMap(radius) {
+    const tiles = [];
+    for(let q = -radius; q <= radius; q++) {
+      for(let r = -radius; r <= radius; r++) {
+        if (Math.abs(q + r) <= radius) {
+          tiles.push({
+            q, r,
+            owner: null,
+            soldierCount: 0,
+            fort: false,
+            base: false,
+            resource: 5,
+          });
+        }
+      }
+    }
+    return tiles;
+  }
+
+  // Find tile by axial coords
+  function getTile(q, r) {
+    return hexMap.find(t => t.q === q && t.r === r);
+  }
+
+  // Convert tile to screen coords with camera applied
+  function tileToScreen(tile) {
+    const p = hexToPixel(tile.q, tile.r, baseHexSize);
+    return {
+      x: (p.x + camera.x) * camera.zoom + canvas.width / 2,
+      y: (p.y + camera.y) * camera.zoom + canvas.height / 2
+    };
+  }
+
+  // Draw a hex at pixel coords
+  function drawHex(x, y, size, fillStyle, strokeStyle, lineWidth=2) {
+    const angleStep = Math.PI / 3;
+    ctx.beginPath();
+    for(let i = 0; i < 6; i++) {
+      const angle = angleStep * i - Math.PI / 2;
+      const px = x + size * Math.cos(angle);
+      const py = y + size * Math.sin(angle);
+      if(i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    ctx.stroke();
+  }
+
+  // Draw soldier icon (circle)
+  function drawSoldier(x, y, scale=1) {
+    ctx.fillStyle = 'yellow';
+    ctx.beginPath();
+    ctx.arc(x, y, 8 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'orange';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Draw fort icon (square)
+  function drawFort(x, y, scale=1) {
+    ctx.fillStyle = 'lightblue';
+    const size = 14 * scale;
+    ctx.fillRect(x - size/2, y - size/2, size, size);
+    ctx.strokeStyle = 'blue';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - size/2, y - size/2, size, size);
+  }
+
+  // Draw base icon (star)
+  function drawBase(x, y, scale=1) {
+    const r = 10 * scale;
+    ctx.fillStyle = 'lime';
+    ctx.beginPath();
+    for(let i=0; i<5; i++) {
+      const angle = i * (Math.PI*2)/5 - Math.PI/2;
+      const x1 = x + r * Math.cos(angle);
+      const y1 = y + r * Math.sin(angle);
+      const x2 = x + r/2 * Math.cos(angle + Math.PI/5);
+      const y2 = y + r/2 * Math.sin(angle + Math.PI/5);
+      if(i === 0) ctx.moveTo(x1,y1);
+      else ctx.lineTo(x1,y1);
+      ctx.lineTo(x2,y2);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'green';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Draw the whole map
+  function drawMap() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw all tiles
+    hexMap.forEach(tile => {
+      const pos = tileToScreen(tile);
+
+      // Background color by owner
+      let fill = '#555';
+      let stroke = '#777';
+
+      if(tile.owner !== null) {
+        const c = players[tile.owner].color;
+        fill = c;
+        stroke = shadeColor(c, -30);
+      }
+
+      drawHex(pos.x, pos.y, baseHexSize * camera.zoom, fill, stroke, 3);
+
+      // Base icon
+      if(tile.base) drawBase(pos.x, pos.y, camera.zoom);
+
+      // Fort icon
+      if(tile.fort) drawFort(pos.x, pos.y, camera.zoom);
+
+      // Soldiers count (draw circle + count)
+      if(tile.soldierCount > 0) {
+        drawSoldier(pos.x, pos.y + 15 * camera.zoom, camera.zoom);
+        ctx.fillStyle = 'black';
+        ctx.font = `${12 * camera.zoom}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(tile.soldierCount, pos.x, pos.y + 18 * camera.zoom);
+      }
+    });
+
+    // Highlight selected tile
+    if(selectedTile) {
+      const pos = tileToScreen(selectedTile);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'white';
+      ctx.setLineDash([8, 6]);
+      drawHex(pos.x, pos.y, baseHexSize * camera.zoom + 4, 'transparent', 'white', 4);
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Utility: shade color (lighter/darker)
+  function shadeColor(color, percent) {
+    let f=parseInt(color.slice(1),16),
+        t=percent<0?0:255,
+        p=percent<0?percent*-1:percent,
+        R=f>>16,
+        G=f>>8&0x00FF,
+        B=f&0x0000FF;
+    return "#" + (0x1000000 + (Math.round((t-R)*p/100)+R)*0x10000 + (Math.round((t-G)*p/100)+G)*0x100 + (Math.round((t-B)*p/100)+B)).toString(16).slice(1);
+  }
+
+  // Find tile under pixel
+  function getTileAtPixel(x, y) {
+    // Reverse camera transform
+    const cx = (x - canvas.width/2)/camera.zoom - camera.x;
+    const cy = (y - canvas.height/2)/camera.zoom - camera.y;
+
+    // Convert to axial
+    const axial = pixelToHex(cx, cy, baseHexSize);
+    return getTile(axial.q, axial.r);
+  }
+
+  // Initialize players with default names and colors
+  function initPlayers(n, names) {
+    const baseColors = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71'];
+    players = [];
+    for(let i=0; i<n; i++) {
+      players.push({
+        id: i,
+        name: names[i] || `Player ${i+1}`,
+        color: baseColors[i],
+        money: 50,
       });
     }
   }
-}
 
-function drawHex(x, y, radius, color, fill = false) {
-  const angle = Math.PI / 3;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const dx = x + radius * Math.cos(angle * i);
-    const dy = y + radius * Math.sin(angle * i);
-    ctx.lineTo(dx, dy);
-  }
-  ctx.closePath();
-  if (fill) {
-    ctx.fillStyle = color;
-    ctx.fill();
-  }
-  ctx.strokeStyle = color;
-  ctx.stroke();
-}
+  // Assign bases for players on map corners
+  function assignBases() {
+    // Clear previous bases
+    hexMap.forEach(t => {
+      t.base = false;
+      t.owner = null;
+      t.soldierCount = 0;
+      t.fort = false;
+    });
 
-function drawGrid() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  hexes.forEach(hex => {
-    const color = hex.owner ? hex.owner.color : '#666';
-    drawHex(hex.x, hex.y, hexRadius, color, true);
-    if (hex.fort) {
-      ctx.fillStyle = '#fff';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('🏰', hex.x - 10, hex.y + 6);
+    // Assign bases at map corners for each player
+    const cornerCoords = [
+      {q: mapRadius, r: 0},
+      {q: -mapRadius, r: mapRadius},
+      {q: 0, r: -mapRadius},
+      {q: -mapRadius, r: 0}
+    ];
+
+    players.forEach((p, i) => {
+      if(i >= cornerCoords.length) return; // max 4 players supported
+      const baseTile = getTile(cornerCoords[i].q, cornerCoords[i].r);
+      if(baseTile) {
+        baseTile.base = true;
+        baseTile.owner = p.id;
+        baseTile.soldierCount = 3;
+      }
+    });
+  }
+
+  // UI update functions
+  function updatePlayerInfo() {
+    const player = players[currentPlayerIndex];
+    playerInfoDiv.textContent = `Current Player: ${player.name}`;
+    moneyDisplay.textContent = `Money: ${player.money} Gold`;
+    phaseDisplay.textContent = `Phase: ${phases[currentPhaseIndex]}`;
+
+    // Enable/disable buttons based on phase
+    buySoldierBtn.disabled = !(currentPhaseIndex === 1);
+    buildFortBtn.disabled = !(currentPhaseIndex === 1);
+    endTurnBtn.disabled = false;
+  }
+
+  // Game phase advance
+  function advancePhase() {
+    currentPhaseIndex++;
+    if(currentPhaseIndex >= phases.length) {
+      currentPhaseIndex = 0;
+      currentPlayerIndex++;
+      if(currentPlayerIndex >= players.length) currentPlayerIndex = 0;
     }
-    if (hex.soldier) {
-      ctx.fillStyle = '#fff';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('⚔️', hex.x - 8, hex.y + 6);
+    updatePlayerInfo();
+  }
+
+  // Handle buy soldier button
+  buySoldierBtn.addEventListener('click', () => {
+    if(!selectedTile) return alert("Select a base tile you own!");
+    if(selectedTile.owner !== currentPlayerIndex || !selectedTile.base) return alert("You can only build on your base tiles!");
+    const player = players[currentPlayerIndex];
+    if(player.money < 10) return alert("Not enough money!");
+    player.money -= 10;
+    selectedTile.soldierCount++;
+    updatePlayerInfo();
+    drawMap();
+  });
+
+  // Handle build fort button
+  buildFortBtn.addEventListener('click', () => {
+    if(!selectedTile) return alert("Select a base tile you own!");
+    if(selectedTile.owner !== currentPlayerIndex || !selectedTile.base) return alert("You can only build on your base tiles!");
+    const player = players[currentPlayerIndex];
+    if(player.money < 20) return alert("Not enough money!");
+    if(selectedTile.fort) return alert("Fort already built here!");
+    player.money -= 20;
+    selectedTile.fort = true;
+    updatePlayerInfo();
+    drawMap();
+  });
+
+  // End turn button
+  endTurnBtn.addEventListener('click', () => {
+    advancePhase();
+    drawMap();
+  });
+
+  // Canvas mouse handling: selection, dragging, zoom
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStart.x = e.clientX;
+    dragStart.y = e.clientY;
+    cameraStart.x = camera.x;
+    cameraStart.y = camera.y;
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if(isDragging) {
+      isDragging = false;
+      // If mouse didn't move much, treat as click for tile select
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      if(Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+        const rect = canvas.getBoundingClientRect();
+        const tile = getTileAtPixel(e.clientX - rect.left, e.clientY - rect.top);
+        if(tile) {
+          selectedTile = tile;
+          drawMap();
+        }
+      }
     }
   });
-}
 
-function getHexAt(x, y) {
-  return hexes.find(hex => Math.hypot(hex.x - x, hex.y - y) < hexRadius);
-}
+  canvas.addEventListener('mousemove', (e) => {
+    if(isDragging) {
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      camera.x = cameraStart.x + dx / camera.zoom;
+      camera.y = cameraStart.y + dy / camera.zoom;
+      drawMap();
+      tooltip.style.visibility = 'hidden';
+    } else {
+      // Show tooltip for tile under mouse
+      const rect = canvas.getBoundingClientRect();
+      const tile = getTileAtPixel(e.clientX - rect.left, e.clientY - rect.top);
+      if(tile) {
+        tooltip.style.visibility = 'visible';
+        tooltip.style.left = `${e.clientX + 15}px`;
+        tooltip.style.top = `${e.clientY + 15}px`;
+        let text = `Q:${tile.q} R:${tile.r}\nOwner: `;
+        if(tile.owner !== null) text += players[tile.owner].name;
+        else text += 'None';
+        text += `\nSoldiers: ${tile.soldierCount}`;
+        text += `\nFort: ${tile.fort ? 'Yes' : 'No'}`;
+        text += `\nBase: ${tile.base ? 'Yes' : 'No'}`;
+        text += `\nResources: ${tile.resource}`;
+        tooltip.textContent = text;
+      } else {
+        tooltip.style.visibility = 'hidden';
+      }
+    }
+  });
 
-function updateUI() {
-  const player = players[currentPlayerIndex];
-  playerInfo.textContent = `${player.name}`;
-  moneyDisplay.textContent = `Gold: ${player.money}`;
-  phaseDisplay.textContent = `Phase: ${currentPhase}`;
-  const actionPhase = currentPhase === 'action';
-  endTurnBtn.disabled = !actionPhase;
-  buySoldierBtn.disabled = !actionPhase || player.money < 10;
-  buildFortBtn.disabled = !actionPhase || player.money < 20;
-}
+  // Mouse wheel for zoom
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomAmount = -e.deltaY * 0.001;
+    let newZoom = camera.zoom + zoomAmount;
+    newZoom = Math.min(Math.max(newZoom, camera.minZoom), camera.maxZoom);
 
-canvas.addEventListener('click', e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  const hex = getHexAt(x, y);
-  if (!hex) return;
-  const player = players[currentPlayerIndex];
+    // Zoom towards mouse position
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-  if (currentPhase === 'placement' && !hex.owner) {
-    hex.owner = player;
-    player.tiles.push(hex);
-    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-    if (currentPlayerIndex === 0) currentPhase = 'action';
-    updateUI();
-    drawGrid();
-  }
-});
+    // Convert mouse pos to world coords before zoom
+    const wx1 = (mouseX - canvas.width/2) / camera.zoom - camera.x;
+    const wy1 = (mouseY - canvas.height/2) / camera.zoom - camera.y;
 
-buySoldierBtn.onclick = () => {
-  const player = players[currentPlayerIndex];
-  const tile = player.tiles.find(t => !t.soldier);
-  if (tile && player.money >= 10) {
-    tile.soldier = true;
-    player.money -= 10;
-    player.soldiers.push(tile);
-    updateUI();
-    drawGrid();
-  }
-};
+    camera.zoom = newZoom;
 
-buildFortBtn.onclick = () => {
-  const player = players[currentPlayerIndex];
-  const tile = player.tiles.find(t => !t.fort);
-  if (tile && player.money >= 20) {
-    tile.fort = true;
-    player.money -= 20;
-    player.forts.push(tile);
-    updateUI();
-    drawGrid();
-  }
-};
+    // After zoom, convert mouse pos to new world coords
+    const wx2 = (mouseX - canvas.width/2) / camera.zoom - camera.x;
+    const wy2 = (mouseY - canvas.height/2) / camera.zoom - camera.y;
 
-endTurnBtn.onclick = () => {
-  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-  if (currentPlayerIndex === 0) {
-    players.forEach(p => p.money += 5);
-  }
-  updateUI();
-  drawGrid();
-};
+    // Adjust camera to keep focus on mouse
+    camera.x += wx2 - wx1;
+    camera.y += wy2 - wy1;
 
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  const hex = getHexAt(x, y);
-  if (hex) {
-    tooltip.style.visibility = 'visible';
-    tooltip.style.left = `${e.pageX + 10}px`;
-    tooltip.style.top = `${e.pageY + 10}px`;
-    tooltip.innerHTML = `Tile [${hex.col},${hex.row}]<br>` +
-      `Owner: ${hex.owner ? hex.owner.name : 'None'}<br>` +
-      `Soldier: ${hex.soldier ? 'Yes' : 'No'}<br>` +
-      `Fort: ${hex.fort ? 'Yes' : 'No'}`;
-  } else {
-    tooltip.style.visibility = 'hidden';
-  }
-});
+    drawMap();
+  }, { passive: false });
 
-createHexGrid();
-drawGrid();
-updateUI();
+  // Update theme based on selection
+  themeSelect.addEventListener('change', () => {
+    const val = themeSelect.value;
+    document.body.className = `theme-${val}`;
+  });
+
+  // Player count change updates name inputs
+  playerCountSelect.addEventListener('change', () => {
+    const count = parseInt(playerCountSelect.value);
+    while(playerNamesContainer.children.length > count) {
+      playerNamesContainer.removeChild(playerNamesContainer.lastElementChild);
+    }
+    while(playerNamesContainer.children.length < count) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'playerName';
+      input.value = `Player ${playerNamesContainer.children.length + 1}`;
+      playerNamesContainer.appendChild(input);
+    }
+  });
+
+  // Start game button logic
+  startGameBtn.addEventListener('click', () => {
+    const playerCount = parseInt(playerCountSelect.value);
+    const names = Array.from(document.querySelectorAll('.playerName')).map(i => i.value.trim() || 'Player');
+    initPlayers(playerCount, names);
+    assignBases();
+    updatePlayerInfo();
+    drawMap();
+    titleScreen.style.display = 'none';
+  });
+
+  // Initial generate map
+  hexMap = generateMap(mapRadius);
+
+  // Initially update UI with placeholders disabled
+  buySoldierBtn.disabled = true;
+  buildFortBtn.disabled = true;
+  endTurnBtn.disabled = true;
+
+  // Draw initial empty map
+  drawMap();
+
 </script>
 
 </body>
