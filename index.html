@@ -112,275 +112,181 @@
   <div id="playerInfo"></div>
   <div id="moneyDisplay"></div>
   <div id="phaseDisplay"></div>
-  
+
   <div id="shop">
     <h3>Shop</h3>
     <button id="buySoldier" disabled>Buy Soldier (10 Gold)</button>
     <button id="buildFort" disabled>Build Fort (20 Gold)</button>
   </div>
-  
+
   <button id="endTurnBtn" disabled>End Turn</button>
 </div>
 
 <script>
-  // Basic setup
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  const tooltip = document.getElementById('tooltip');
-  const playerInfoDiv = document.getElementById('playerInfo');
-  const moneyDisplay = document.getElementById('moneyDisplay');
-  const phaseDisplay = document.getElementById('phaseDisplay');
-  const buySoldierBtn = document.getElementById('buySoldier');
-  const buildFortBtn = document.getElementById('buildFort');
-  const endTurnBtn = document.getElementById('endTurnBtn');
+// GAME STATE VARIABLES
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+const playerInfo = document.getElementById('playerInfo');
+const moneyDisplay = document.getElementById('moneyDisplay');
+const phaseDisplay = document.getElementById('phaseDisplay');
+const endTurnBtn = document.getElementById('endTurnBtn');
+const buySoldierBtn = document.getElementById('buySoldier');
+const buildFortBtn = document.getElementById('buildFort');
 
-  const hexSize = 30;
-  const mapRadius = 6;
+const hexRadius = 40;
+const hexHeight = Math.sqrt(3) * hexRadius;
+const gridCols = 10;
+const gridRows = 10;
 
-  // Game State
-  let players = [
-    { id: 0, name: 'Player 1', color: '#3498db', money: 50, bases: [], units: [] },
-    { id: 1, name: 'Player 2', color: '#e74c3c', money: 50, bases: [], units: [] },
-  ];
-  let currentPlayerIndex = 0;
+let currentPlayerIndex = 0;
+let currentPhase = 'placement'; // 'placement', 'action', 'end'
 
-  const phases = ['Resource', 'Build', 'Move', 'Combat', 'Capture'];
-  let currentPhaseIndex = 0;
+let players = [
+  { id: 1, name: 'Player 1', color: '#f00', money: 20, tiles: [], soldiers: [], forts: [] },
+  { id: 2, name: 'Player 2', color: '#0f0', money: 20, tiles: [], soldiers: [], forts: [] },
+];
 
-  // Hex Map Data
-  let hexMap = [];
+let hexes = [];
 
-  function hexToPixel(q, r) {
-    const x = hexSize * 3/2 * q;
-    const y = hexSize * Math.sqrt(3) * (r + q/2);
-    return {x, y};
-  }
-
-  function drawHex(x, y, fillColor, strokeColor) {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const angle = Math.PI / 180 * (60 * i);
-      const px = x + hexSize * Math.cos(angle);
-      const py = y + hexSize * Math.sin(angle);
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+function createHexGrid() {
+  hexes = [];
+  for (let row = 0; row < gridRows; row++) {
+    for (let col = 0; col < gridCols; col++) {
+      const x = col * 1.5 * hexRadius + 60;
+      const y = row * hexHeight + (col % 2 === 0 ? 60 : 60 + hexHeight / 2);
+      hexes.push({
+        x, y, col, row,
+        owner: null,
+        soldier: null,
+        fort: false,
+      });
     }
-    ctx.closePath();
-    ctx.fillStyle = fillColor;
+  }
+}
+
+function drawHex(x, y, radius, color, fill = false) {
+  const angle = Math.PI / 3;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const dx = x + radius * Math.cos(angle * i);
+    const dy = y + radius * Math.sin(angle * i);
+    ctx.lineTo(dx, dy);
+  }
+  ctx.closePath();
+  if (fill) {
+    ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
 
-  function isInMap(q, r, radius) {
-    const s = -q - r;
-    return Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= radius;
-  }
-
-  function drawMap() {
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hexMap = [];
-
-    for(let q = -mapRadius; q <= mapRadius; q++) {
-      for(let r = -mapRadius; r <= mapRadius; r++) {
-        if(isInMap(q, r, mapRadius)) {
-          const {x, y} = hexToPixel(q, r);
-          const pixelX = centerX + x;
-          const pixelY = centerY + y;
-          hexMap.push({
-            q, r,
-            x: pixelX,
-            y: pixelY,
-            owner: null,
-            base: false,
-            units: [],
-            structure: null, // 'fort'
-            resource: Math.random() < 0.15 ? 5 : 0, // random small resource chance
-          });
-          drawHex(pixelX, pixelY, '#555', '#222');
-        }
-      }
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hexes.forEach(hex => {
+    const color = hex.owner ? hex.owner.color : '#666';
+    drawHex(hex.x, hex.y, hexRadius, color, true);
+    if (hex.fort) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('🏰', hex.x - 10, hex.y + 6);
     }
-  }
-
-  function placeBases() {
-    const basePositions = [
-      {q: 0, r: -mapRadius},
-      {q: mapRadius, r: 0},
-      {q: 0, r: mapRadius},
-      {q: -mapRadius, r: 0}
-    ];
-    players.forEach((player, i) => {
-      const pos = basePositions[i];
-      const tile = hexMap.find(h => h.q === pos.q && h.r === pos.r);
-      if(tile) {
-        tile.owner = player.id;
-        tile.base = true;
-        player.bases.push(tile);
-      }
-    });
-  }
-
-  // Draw units and structures as icons
-  function drawUnitsAndStructures() {
-    hexMap.forEach(tile => {
-      if(tile.units.length > 0) {
-        tile.units.forEach((unit, idx) => {
-          // Draw soldier icon (circle)
-          ctx.beginPath();
-          ctx.fillStyle = players[unit.owner].color;
-          const offsetX = tile.x + (idx * 10) - 10;
-          const offsetY = tile.y + 15;
-          ctx.arc(offsetX, offsetY, 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#000';
-          ctx.stroke();
-        });
-      }
-      if(tile.structure === 'fort') {
-        // Draw fort icon (square)
-        ctx.fillStyle = '#aaa';
-        ctx.fillRect(tile.x - 10, tile.y - 20, 20, 10);
-        ctx.strokeStyle = '#000';
-        ctx.strokeRect(tile.x - 10, tile.y - 20, 20, 10);
-      }
-    });
-  }
-
-  // UI updates
-  function updateUI() {
-    const player = players[currentPlayerIndex];
-    playerInfoDiv.textContent = `${player.name} (${player.color})`;
-    moneyDisplay.textContent = `Gold: ${player.money}`;
-    phaseDisplay.textContent = `Phase: ${phases[currentPhaseIndex]}`;
-    
-    // Enable/disable buttons depending on phase
-    buySoldierBtn.disabled = !(phases[currentPhaseIndex] === 'Build' && player.money >= 10);
-    buildFortBtn.disabled = !(phases[currentPhaseIndex] === 'Build' && player.money >= 20);
-    endTurnBtn.disabled = false;
-  }
-
-  // Get tile under mouse
-  function getTileAtPosition(x, y) {
-    for(const tile of hexMap) {
-      const dx = x - tile.x;
-      const dy = y - tile.y;
-      // simple circle hit test for hex center with some margin
-      if(Math.sqrt(dx*dx + dy*dy) < hexSize) {
-        return tile;
-      }
-    }
-    return null;
-  }
-
-  // Handle canvas mouse move to show tooltip
-  canvas.addEventListener('mousemove', e => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const tile = getTileAtPosition(mouseX, mouseY);
-
-    if(tile) {
-      tooltip.style.left = (e.clientX + 15) + 'px';
-      tooltip.style.top = (e.clientY + 15) + 'px';
-      tooltip.style.visibility = 'visible';
-      tooltip.innerHTML = `
-        <b>Tile [${tile.q},${tile.r}]</b><br/>
-        Owner: ${tile.owner !== null ? players[tile.owner].name : 'None'}<br/>
-        Base: ${tile.base ? 'Yes' : 'No'}<br/>
-        Structure: ${tile.structure ? tile.structure : 'None'}<br/>
-        Units: ${tile.units.length}<br/>
-        Resources: ${tile.resource}
-      `;
-    } else {
-      tooltip.style.visibility = 'hidden';
+    if (hex.soldier) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('⚔️', hex.x - 8, hex.y + 6);
     }
   });
+}
 
-  // Hide tooltip when mouse leaves canvas
-  canvas.addEventListener('mouseleave', () => {
-    tooltip.style.visibility = 'hidden';
-  });
+function getHexAt(x, y) {
+  return hexes.find(hex => Math.hypot(hex.x - x, hex.y - y) < hexRadius);
+}
 
-  // Click handler for buying/building on selected tile
-  let selectedTile = null;
-  canvas.addEventListener('click', e => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const tile = getTileAtPosition(mouseX, mouseY);
-    if(tile) {
-      selectedTile = tile;
-      drawMap();
-      drawUnitsAndStructures();
+function updateUI() {
+  const player = players[currentPlayerIndex];
+  playerInfo.textContent = `${player.name}`;
+  moneyDisplay.textContent = `Gold: ${player.money}`;
+  phaseDisplay.textContent = `Phase: ${currentPhase}`;
+  const actionPhase = currentPhase === 'action';
+  endTurnBtn.disabled = !actionPhase;
+  buySoldierBtn.disabled = !actionPhase || player.money < 10;
+  buildFortBtn.disabled = !actionPhase || player.money < 20;
+}
 
-      // Highlight selected tile
-      ctx.strokeStyle = '#ffff00';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      for(let i=0; i<6; i++) {
-        const angle = Math.PI / 180 * (60 * i);
-        const px = tile.x + hexSize * Math.cos(angle);
-        const py = tile.y + hexSize * Math.sin(angle);
-        if(i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.stroke();
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const hex = getHexAt(x, y);
+  if (!hex) return;
+  const player = players[currentPlayerIndex];
 
-      updateUI();
-    }
-  });
-
-  // Buy soldier button
-  buySoldierBtn.addEventListener('click', () => {
-    const player = players[currentPlayerIndex];
-    if(selectedTile && selectedTile.owner === player.id && player.money >= 10) {
-      selectedTile.units.push({owner: player.id, type: 'soldier'});
-      player.money -= 10;
-      updateUI();
-      drawMap();
-      drawUnitsAndStructures();
-    }
-  });
-
-  // Build fort button
-  buildFortBtn.addEventListener('click', () => {
-    const player = players[currentPlayerIndex];
-    if(selectedTile && selectedTile.owner === player.id && !selectedTile.structure && player.money >= 20) {
-      selectedTile.structure = 'fort';
-      player.money -= 20;
-      updateUI();
-      drawMap();
-      drawUnitsAndStructures();
-    }
-  });
-
-  // End turn logic
-  endTurnBtn.addEventListener('click', () => {
-    // Advance phase or player
-    currentPhaseIndex++;
-    if(currentPhaseIndex >= phases.length) {
-      currentPhaseIndex = 0;
-      currentPlayerIndex++;
-      if(currentPlayerIndex >= players.length) currentPlayerIndex = 0;
-      // Simple resource gain each new turn
-      players[currentPlayerIndex].money += 15;
-    }
-    selectedTile = null;
-    drawMap();
-    drawUnitsAndStructures();
+  if (currentPhase === 'placement' && !hex.owner) {
+    hex.owner = player;
+    player.tiles.push(hex);
+    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+    if (currentPlayerIndex === 0) currentPhase = 'action';
     updateUI();
-  });
+    drawGrid();
+  }
+});
 
-  // Initial setup
-  drawMap();
-  placeBases();
-  drawUnitsAndStructures();
+buySoldierBtn.onclick = () => {
+  const player = players[currentPlayerIndex];
+  const tile = player.tiles.find(t => !t.soldier);
+  if (tile && player.money >= 10) {
+    tile.soldier = true;
+    player.money -= 10;
+    player.soldiers.push(tile);
+    updateUI();
+    drawGrid();
+  }
+};
+
+buildFortBtn.onclick = () => {
+  const player = players[currentPlayerIndex];
+  const tile = player.tiles.find(t => !t.fort);
+  if (tile && player.money >= 20) {
+    tile.fort = true;
+    player.money -= 20;
+    player.forts.push(tile);
+    updateUI();
+    drawGrid();
+  }
+};
+
+endTurnBtn.onclick = () => {
+  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+  if (currentPlayerIndex === 0) {
+    players.forEach(p => p.money += 5);
+  }
   updateUI();
+  drawGrid();
+};
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const hex = getHexAt(x, y);
+  if (hex) {
+    tooltip.style.visibility = 'visible';
+    tooltip.style.left = `${e.pageX + 10}px`;
+    tooltip.style.top = `${e.pageY + 10}px`;
+    tooltip.innerHTML = `Tile [${hex.col},${hex.row}]<br>` +
+      `Owner: ${hex.owner ? hex.owner.name : 'None'}<br>` +
+      `Soldier: ${hex.soldier ? 'Yes' : 'No'}<br>` +
+      `Fort: ${hex.fort ? 'Yes' : 'No'}`;
+  } else {
+    tooltip.style.visibility = 'hidden';
+  }
+});
+
+createHexGrid();
+drawGrid();
+updateUI();
 </script>
 
 </body>
