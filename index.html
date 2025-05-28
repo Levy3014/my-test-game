@@ -3,459 +3,352 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Hex Conquest - Expanded with AI and Minimap Fix</title>
+<title>Hex Conquest - v0.1.0 Added AI</title>
 <style>
-  /* Basic reset & layout */
-  body {
-    margin: 0; padding: 0; background: #222; color: white;
-    font-family: Arial, sans-serif;
+  /* === RESET & BASE === */
+  * {
+    box-sizing: border-box;
+  }
+  body, html {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg);
+    color: var(--fg);
     user-select: none;
+  }
+
+  /* THEME VARIABLES */
+  :root {
+    --bg-light: #f0f0f0;
+    --fg-light: #222;
+    --bg-dark: #222;
+    --fg-dark: #eee;
+  }
+  body.theme-light {
+    --bg: var(--bg-light);
+    --fg: var(--fg-light);
+  }
+  body.theme-dark {
+    --bg: var(--bg-dark);
+    --fg: var(--fg-dark);
+  }
+
+  /* CONTAINER */
+  #app {
     display: flex;
+    flex-direction: column;
     height: 100vh;
-    overflow: hidden;
+    width: 100vw;
   }
-  #container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    max-width: 1000px;
-    margin: 0 auto;
-    user-select: none;
-    position: relative;
-  }
-  canvas#gameCanvas {
-    background: #333;
-    border-radius: 8px;
-    border: 2px solid #555;
-    flex: 1;
-    display: block;
-  }
-  #sidebar {
-    width: 320px;
-    background: #111;
-    padding: 20px;
-    box-sizing: border-box;
-    border-left: 2px solid #444;
-    display: flex;
-    flex-direction: column;
-  }
-  button {
-    background: #3498db;
-    border: none;
-    padding: 10px 20px;
-    margin: 8px 0;
-    font-size: 16px;
-    color: white;
-    cursor: pointer;
-    border-radius: 6px;
-  }
-  button:disabled {
-    background: #555;
-    cursor: not-allowed;
-  }
-  h2, h3 {
-    margin: 10px 0 5px 0;
-  }
-  #tooltip {
-    position: absolute;
-    background: #222;
-    color: #eee;
-    border: 1px solid #555;
-    padding: 6px 8px;
-    border-radius: 4px;
-    pointer-events: none;
-    font-size: 14px;
-    visibility: hidden;
-    max-width: 220px;
-    z-index: 10;
-  }
-  #playerInfo {
-    margin-bottom: 10px;
-  }
-  .unit-icon {
-    display: inline-block;
-    width: 20px; height: 20px;
-    margin-right: 5px;
-    vertical-align: middle;
-  }
-  .unit-icon.soldier {
-    background: url('https://img.icons8.com/ios-filled/50/ffffff/soldier-helmet.png') no-repeat center center;
-    background-size: contain;
-  }
-  .unit-icon.fort {
-    background: url('https://img.icons8.com/ios-filled/50/ffffff/castle.png') no-repeat center center;
-    background-size: contain;
-  }
-  #phaseDisplay {
-    margin-bottom: 15px;
+
+  /* UPDATE LABEL top-left */
+  #updateLabel {
+    position: fixed;
+    top: 5px;
+    left: 5px;
+    background: #ffa;
+    color: #222;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 14px;
+    padding: 3px 7px;
+    border-radius: 5px;
+    pointer-events: none;
+    z-index: 999;
   }
-  #moneyDisplay {
-    margin-bottom: 15px;
-  }
-  #shop {
-    border-top: 1px solid #444;
-    padding-top: 15px;
+
+  /* TITLE SCREEN */
+  #titleScreen {
     flex-grow: 1;
-  }
-  #shop button {
-    width: 100%;
-  }
-
-  /* Minimap styles */
-  #minimapContainer {
-    margin-top: 15px;
-    background: #222;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 6px;
-  }
-  #minimap {
-    background: #111;
-    display: block;
-    width: 280px;
-    height: 280px;
-    border-radius: 4px;
-  }
-
-  /* Menu screen styles */
-  #menuScreen {
-    position: absolute;
-    inset: 0;
-    background: #111;
+    background: var(--bg);
+    color: var(--fg);
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    z-index: 50;
-    color: white;
-  }
-  #menuScreen h1 {
-    margin-bottom: 20px;
-    font-size: 36px;
-  }
-  #playersContainer {
-    width: 320px;
-    max-width: 90vw;
-    background: #222;
+    justify-content: center;
+    gap: 10px;
     padding: 20px;
-    border-radius: 8px;
-    box-sizing: border-box;
-    margin-bottom: 20px;
   }
-  .playerSlot {
+  #titleScreen h1 {
+    font-size: 3em;
+    margin: 0 0 10px;
+  }
+  #playersList {
+    width: 300px;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .player-entry {
     display: flex;
     align-items: center;
-    margin-bottom: 12px;
+    gap: 10px;
   }
-  .playerSlot label {
-    flex: 0 0 70px;
+  .player-entry label {
+    flex-shrink: 0;
+    width: 80px;
+    font-weight: 600;
   }
-  .playerSlot input[type="text"] {
-    flex: 1;
-    padding: 6px 8px;
-    font-size: 14px;
-    border-radius: 4px;
-    border: none;
-    margin-right: 8px;
+  .player-entry input[type="text"] {
+    flex-grow: 1;
+    padding: 5px 7px;
+    font-size: 1em;
   }
-  .playerSlot select {
-    margin-left: 8px;
-    padding: 6px;
-    border-radius: 4px;
-    font-size: 14px;
-    background: #333;
-    color: white;
-    border: none;
+  .player-entry select {
+    font-size: 1em;
+    padding: 4px 6px;
+  }
+  #addButtons {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  #addButtons button {
+    font-size: 1em;
+    padding: 8px 15px;
     cursor: pointer;
-  }
-  .playerSlot button {
-    margin-left: 8px;
-    padding: 6px 12px;
-    font-size: 14px;
   }
   #startGameBtn {
-    background: #27ae60;
-    font-size: 18px;
-    padding: 12px 30px;
-    border-radius: 8px;
+    margin-top: 15px;
+    font-size: 1.2em;
+    padding: 10px 20px;
+    cursor: pointer;
   }
 
-  /* Scrollbar hidden for minimap container */
-  #minimapContainer::-webkit-scrollbar {
-    display: none;
+  /* THEME SWITCHER + INSTRUCTIONS BUTTON */
+  #bottomControls {
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
   }
-  #minimapContainer {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+  #themeSwitcher, #instructionsBtn {
+    cursor: pointer;
+    padding: 6px 15px;
+    font-size: 1em;
+  }
+
+  /* INSTRUCTIONS MODAL */
+  #instructionsModal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  #instructionsContent {
+    background: var(--bg);
+    color: var(--fg);
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    font-size: 1.1em;
+  }
+  #instructionsContent button {
+    margin-top: 15px;
+    padding: 6px 15px;
+    font-size: 1em;
+    cursor: pointer;
+  }
+
+  /* GAME SCREEN */
+  #gameScreen {
+    flex-grow: 1;
+    position: relative;
+    background: var(--bg);
+    display: none;
+    overflow: hidden;
+  }
+
+  /* CANVAS FOR HEX GRID */
+  #gameCanvas {
+    display: block;
+    background-color: #456; /* neutral dark blueish */
+  }
+
+  /* MINIMAP - fixed top right */
+  #minimap {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    border: 2px solid #888;
+    background: #222;
+    width: 200px;
+    height: 160px;
+    z-index: 50;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  /* TOOLTIP */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(0,0,0,0.75);
+    color: white;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    z-index: 100;
+    display: none;
+    max-width: 200px;
   }
 </style>
 </head>
-<body>
+<body class="theme-light">
 
-<div id="container">
-  <canvas id="gameCanvas" width="900" height="800"></canvas>
-  <div id="tooltip"></div>
+<div id="updateLabel">Added AI</div>
+
+<div id="app">
+  <!-- TITLE SCREEN -->
+  <section id="titleScreen">
+    <h1>Hex Conquest</h1>
+    <div id="playersList">
+      <!-- Player entries get dynamically inserted here -->
+    </div>
+    <div id="addButtons">
+      <button id="addBotBtn">Add Bot</button>
+      <button id="addHumanBtn">Add Human</button>
+    </div>
+    <button id="startGameBtn" disabled>Start Game</button>
+    <div id="bottomControls">
+      <button id="themeSwitcher">Switch Theme</button>
+      <button id="instructionsBtn">Instructions</button>
+    </div>
+  </section>
+
+  <!-- INSTRUCTIONS MODAL -->
+  <section id="instructionsModal" aria-modal="true" role="dialog" aria-labelledby="instructionsTitle">
+    <div id="instructionsContent">
+      <h2 id="instructionsTitle">Instructions</h2>
+      <p>Welcome to Hex Conquest! Control your units to conquer the hexagonal grid.</p>
+      <ul>
+        <li>Use mouse drag to pan around the map.</li>
+        <li>Use mouse wheel to zoom in and out.</li>
+        <li>Click tiles to select and zoom on them.</li>
+        <li>Manage your units and conquer territories.</li>
+        <li>Unlock cosmetics by gaining XP.</li>
+      </ul>
+      <button id="closeInstructionsBtn">Close</button>
+    </div>
+  </section>
+
+  <!-- GAME SCREEN -->
+  <section id="gameScreen">
+    <canvas id="gameCanvas"></canvas>
+    <canvas id="minimap"></canvas>
+  </section>
 </div>
 
-<div id="sidebar">
-  <div id="playerInfo"></div>
-  <div id="moneyDisplay"></div>
-  <div id="phaseDisplay"></div>
-  
-  <div id="shop">
-    <h3>Shop</h3>
-    <button id="buySoldier" disabled>Buy Soldier (10 Gold)</button>
-    <button id="buildFort" disabled>Build Fort (20 Gold)</button>
-  </div>
-
-  <button id="endTurnBtn" disabled>End Turn</button>
-
-  <div id="minimapContainer">
-    <h3>Minimap</h3>
-    <canvas id="minimap" width="280" height="280"></canvas>
-  </div>
-</div>
-
-<!-- Menu Screen -->
-<div id="menuScreen">
-  <h1>Hex Conquest</h1>
-  <div id="playersContainer">
-    <!-- Player slots will be dynamically inserted here -->
-  </div>
-  <button id="startGameBtn" disabled>Start Game</button>
-</div>
+<div id="tooltip"></div>
 
 <script>
 (() => {
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const tooltip = document.getElementById('tooltip');
-  const playerInfoDiv = document.getElementById('playerInfo');
-  const moneyDisplay = document.getElementById('moneyDisplay');
-  const phaseDisplay = document.getElementById('phaseDisplay');
-  const buySoldierBtn = document.getElementById('buySoldier');
-  const buildFortBtn = document.getElementById('buildFort');
-  const endTurnBtn = document.getElementById('endTurnBtn');
+  // === CONSTANTS ===
+  const HEX_RADIUS = 30;
+  const HEX_WIDTH = Math.sqrt(3) * HEX_RADIUS;
+  const HEX_HEIGHT = 2 * HEX_RADIUS;
+  const GRID_RADIUS = 7; // controls size of hexagonal grid (distance from center in hexes)
+  const BORDER_LIMIT = GRID_RADIUS + 1; // limit how far camera can pan beyond grid
+  const MIN_ZOOM = 0.6;
+  const MAX_ZOOM = 2.5;
+  const ZOOM_STEP = 0.1;
+
+  // XP unlocks (placeholder)
+  const unlocks = [
+    "Golden Background",
+    "Crystal Theme",
+    "Forest Theme",
+    "Desert Theme",
+    "Space Theme"
+  ];
+
+  // === STATE ===
+  let theme = 'light';
+  let players = [
+    { id: 1, type: 'human', name: 'Player 1', difficulty: null }
+  ];
+  let selectedTile = null;
+  let xpPoints = 0;
+
+  // Camera state
+  let camX = 0;
+  let camY = 0;
+  let zoom = 1;
+
+  // Dragging state
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
+  let camStart = { x: 0, y: 0 };
+
+  // Canvas & contexts
+  const gameCanvas = document.getElementById('gameCanvas');
+  const gameCtx = gameCanvas.getContext('2d');
+
   const minimapCanvas = document.getElementById('minimap');
   const minimapCtx = minimapCanvas.getContext('2d');
 
-  const menuScreen = document.getElementById('menuScreen');
-  const playersContainer = document.getElementById('playersContainer');
+  // UI Elements
+  const titleScreen = document.getElementById('titleScreen');
+  const gameScreen = document.getElementById('gameScreen');
+  const playersListDiv = document.getElementById('playersList');
+  const addBotBtn = document.getElementById('addBotBtn');
+  const addHumanBtn = document.getElementById('addHumanBtn');
   const startGameBtn = document.getElementById('startGameBtn');
+  const themeSwitcher = document.getElementById('themeSwitcher');
+  const instructionsBtn = document.getElementById('instructionsBtn');
+  const instructionsModal = document.getElementById('instructionsModal');
+  const closeInstructionsBtn = document.getElementById('closeInstructionsBtn');
+  const tooltip = document.getElementById('tooltip');
+  const updateLabel = document.getElementById('updateLabel');
 
-  // Constants for hex grid
-  const hexSize = 30;
-  const mapRadius = 7; // bigger map for minimap
-  const mapBorderRadius = mapRadius + 1; // border limit for camera
-
-  // Camera state
-  let cameraOffset = {x: 0, y: 0};
-  let cameraDragStart = null;
-  let cameraZoom = 1;
-  const cameraZoomMin = 0.7;
-  const cameraZoomMax = 2.0;
-
-  // Game State
-  let players = [];
-  let currentPlayerIndex = 0;
-
-  const phases = ['Resource', 'Build', 'Move', 'Combat', 'Capture'];
-  let currentPhaseIndex = 0;
-
-  let hexMap = [];
-  let selectedTile = null;
-
-  // AI difficulties
-  const aiDifficulties = ['Easy', 'Medium', 'Hard'];
-
-  // Update label (top-left corner)
-  let updateLabel = 'Added AI & Minimap Fix';
-
-  // ----------- MENU LOGIC --------------
-
-  // Player slot template
-  /*
-    Each player slot: 
-    - Name input
-    - Add Human button
-    - Add AI button + AI difficulty dropdown (only if AI selected)
-    - Remove button if slot is filled
-  */
-
-  let playerSlots = []; // {id, type:'human'|'ai'|null, name, aiDifficulty}
-
-  function createPlayerSlot(id) {
-    const slotDiv = document.createElement('div');
-    slotDiv.className = 'playerSlot';
-    slotDiv.dataset.id = id;
-
-    const label = document.createElement('label');
-    label.textContent = `Player ${id + 1}:`;
-    slotDiv.appendChild(label);
-
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = 'Enter name';
-    nameInput.value = `Player${id + 1}`;
-    slotDiv.appendChild(nameInput);
-
-    // Add Human Button
-    const addHumanBtn = document.createElement('button');
-    addHumanBtn.textContent = 'Add Human';
-    slotDiv.appendChild(addHumanBtn);
-
-    // Add AI Button
-    const addAIBtn = document.createElement('button');
-    addAIBtn.textContent = 'Add AI';
-    slotDiv.appendChild(addAIBtn);
-
-    // AI Difficulty dropdown (hidden by default)
-    const aiDifficultySelect = document.createElement('select');
-    aiDifficulties.forEach(d => {
-      const option = document.createElement('option');
-      option.value = d.toLowerCase();
-      option.textContent = d;
-      aiDifficultySelect.appendChild(option);
-    });
-    aiDifficultySelect.style.marginLeft = '8px';
-    aiDifficultySelect.style.display = 'none';
-    slotDiv.appendChild(aiDifficultySelect);
-
-    // Remove Player Button (hidden initially)
-    const removeBtn = document.createElement('button');
-    removeBtn.textContent = 'Remove';
-    removeBtn.style.marginLeft = '8px';
-    removeBtn.style.backgroundColor = '#e74c3c';
-    removeBtn.style.display = 'none';
-    slotDiv.appendChild(removeBtn);
-
-    // Slot state
-    playerSlots[id] = {
-      id,
-      type: null,
-      nameInput,
-      addHumanBtn,
-      addAIBtn,
-      aiDifficultySelect,
-      removeBtn,
-      slotDiv
-    };
-
-    // Event listeners
-    addHumanBtn.onclick = () => {
-      playerSlots[id].type = 'human';
-      playerSlots[id].name = nameInput.value.trim() || `Human${id+1}`;
-      updateSlotUI(id);
-      validateStart();
-    };
-    addAIBtn.onclick = () => {
-      playerSlots[id].type = 'ai';
-      playerSlots[id].name = `AI${id+1}`;
-      playerSlots[id].aiDifficulty = aiDifficultySelect.value || 'easy';
-      updateSlotUI(id);
-      validateStart();
-    };
-    removeBtn.onclick = () => {
-      playerSlots[id].type = null;
-      playerSlots[id].name = '';
-      updateSlotUI(id);
-      validateStart();
-    };
-    aiDifficultySelect.onchange = () => {
-      if(playerSlots[id].type === 'ai'){
-        playerSlots[id].aiDifficulty = aiDifficultySelect.value;
-      }
-    };
-    nameInput.oninput = () => {
-      if(playerSlots[id].type === 'human') {
-        playerSlots[id].name = nameInput.value.trim() || `Human${id+1}`;
-      }
-    };
-
-    playersContainer.appendChild(slotDiv);
-    updateSlotUI(id);
+  // Canvas size helper
+  function resizeCanvases() {
+    gameCanvas.width = gameScreen.clientWidth;
+    gameCanvas.height = gameScreen.clientHeight;
+    minimapCanvas.width = minimapCanvas.clientWidth;
+    minimapCanvas.height = minimapCanvas.clientHeight;
   }
+  window.addEventListener('resize', resizeCanvases);
 
-  function updateSlotUI(id) {
-    const slot = playerSlots[id];
-    if(slot.type === 'human') {
-      slot.nameInput.disabled = false;
-      slot.addHumanBtn.style.display = 'none';
-      slot.addAIBtn.style.display = 'none';
-      slot.aiDifficultySelect.style.display = 'none';
-      slot.removeBtn.style.display = 'inline-block';
-    } else if(slot.type === 'ai') {
-      slot.nameInput.value = slot.name || `AI${id+1}`;
-      slot.nameInput.disabled = true;
-      slot.addHumanBtn.style.display = 'none';
-      slot.addAIBtn.style.display = 'none';
-      slot.aiDifficultySelect.style.display = 'inline-block';
-      slot.aiDifficultySelect.value = slot.aiDifficulty || 'easy';
-      slot.removeBtn.style.display = 'inline-block';
-    } else {
-      // Empty slot
-      slot.nameInput.disabled = false;
-      slot.nameInput.value = '';
-      slot.addHumanBtn.style.display = 'inline-block';
-      slot.addAIBtn.style.display = 'inline-block';
-      slot.aiDifficultySelect.style.display = 'none';
-      slot.removeBtn.style.display = 'none';
+  // Hex grid data structure
+  // We'll use axial coordinates (q, r)
+  // Hexagonal grid with radius GRID_RADIUS:
+  // all hexes with |q| <= GRID_RADIUS, |r| <= GRID_RADIUS, and |q + r| <= GRID_RADIUS
+
+  function generateGrid() {
+    let hexes = [];
+    for (let q = -GRID_RADIUS; q <= GRID_RADIUS; q++) {
+      for (let r = -GRID_RADIUS; r <= GRID_RADIUS; r++) {
+        if (Math.abs(q + r) <= GRID_RADIUS) {
+          hexes.push({ q, r, owner: null, terrain: 'grass' });
+        }
+      }
     }
+    return hexes;
   }
+  let gridHexes = generateGrid();
 
-  function validateStart() {
-    // We require at least 1 player (human or AI) to start
-    const validPlayers = playerSlots.filter(p => p.type !== null);
-    startGameBtn.disabled = validPlayers.length === 0;
-  }
-
-  startGameBtn.onclick = () => {
-    // Load players from slots
-    players = [];
-    playerSlots.forEach(slot => {
-      if(slot.type !== null) {
-        players.push({
-          name: slot.name || (slot.type === 'ai' ? 'AI' : 'Human'),
-          type: slot.type,
-          aiDifficulty: slot.aiDifficulty || 'easy',
-          money: 50,
-          units: [],
-          forts: [],
-          id: slot.id,
-          xp: 0,
-          cosmeticsUnlocked: []
-        });
-      }
-    });
-    if(players.length === 0) return; // safety
-
-    menuScreen.style.display = 'none';
-    initGame();
-  };
-
-  // Initialize 4 player slots by default
-  for(let i=0; i<4; i++) createPlayerSlot(i);
-  // Default first slot as human with name Player1
-  playerSlots[0].type = 'human';
-  playerSlots[0].name = 'Player1';
-  updateSlotUI(0);
-  validateStart();
-
-  // ----------- HEX MAP & GAME LOGIC -----------
-
-  // Hex grid axial coordinate helpers
+  // Convert axial coords to pixel coords
   function hexToPixel(q, r) {
-    const x = hexSize * Math.sqrt(3) * (q + r/2);
-    const y = hexSize * 1.5 * r;
-    return {x, y};
+    const x = HEX_WIDTH * (q + r/2);
+    const y = HEX_RADIUS * 1.5 * r;
+    return { x, y };
   }
+
+  // Convert pixel coords to axial hex coords (approximate)
   function pixelToHex(x, y) {
-    const q = (x * Math.sqrt(3)/3 - y/3) / hexSize;
-    const r = y * 2/3 / hexSize;
+    const q = (Math.sqrt(3)/3 * x - 1/3 * y) / HEX_RADIUS;
+    const r = (2/3 * y) / HEX_RADIUS;
     return hexRound(q, r);
   }
+
+  // Rounding fractional hex coords to nearest hex
   function hexRound(q, r) {
     let x = q;
     let z = r;
@@ -469,265 +362,386 @@
     const y_diff = Math.abs(ry - y);
     const z_diff = Math.abs(rz - z);
 
-    if(x_diff > y_diff && x_diff > z_diff) {
+    if (x_diff > y_diff && x_diff > z_diff) {
       rx = -ry - rz;
-    } else if(y_diff > z_diff) {
+    } else if (y_diff > z_diff) {
       ry = -rx - rz;
     } else {
       rz = -rx - ry;
     }
-    return {q: rx, r: rz};
+    return { q: rx, r: rz };
   }
 
-  // Generate hex map as a hexagon shaped grid
-  function generateHexMap(radius) {
-    const map = [];
-    for(let q = -radius; q <= radius; q++) {
-      const r1 = Math.max(-radius, -q - radius);
-      const r2 = Math.min(radius, -q + radius);
-      for(let r = r1; r <= r2; r++) {
-        map.push({
-          q, r,
-          type: 'grass', // grass or mountain etc
-          owner: null,
-          unit: null,
-          fort: false,
-          x: 0, y: 0
-        });
-      }
-    }
-    return map;
+  // Find hex from axial coords
+  function findHex(q, r) {
+    return gridHexes.find(h => h.q === q && h.r === r);
   }
 
-  // Find tile by axial q,r
-  function findTile(q, r) {
-    return hexMap.find(t => t.q === q && t.r === r);
+  // Clamp camera to border limits so you can't scroll infinitely
+  function clampCamera(x, y) {
+    // Determine boundaries based on grid extent + zoom + canvas size
+    const w = gameCanvas.width;
+    const h = gameCanvas.height;
+
+    // Calculate grid bounds in pixels (rough)
+    const leftBound = -HEX_WIDTH * (GRID_RADIUS + BORDER_LIMIT);
+    const rightBound = HEX_WIDTH * (GRID_RADIUS + BORDER_LIMIT);
+    const topBound = -HEX_RADIUS * 1.5 * (GRID_RADIUS + BORDER_LIMIT);
+    const bottomBound = HEX_RADIUS * 1.5 * (GRID_RADIUS + BORDER_LIMIT);
+
+    // Clamp so camera center stays within grid + border
+    const minX = leftBound * zoom + w/2;
+    const maxX = rightBound * zoom - w/2;
+    const minY = topBound * zoom + h/2;
+    const maxY = bottomBound * zoom - h/2;
+
+    return {
+      x: Math.min(maxX, Math.max(minX, x)),
+      y: Math.min(maxY, Math.max(minY, y))
+    };
   }
 
-  // Check if tile is inside border (for camera limits)
-  function isInMapBounds(q, r) {
-    return Math.abs(q) <= mapBorderRadius && Math.abs(r) <= mapBorderRadius && Math.abs(q + r) <= mapBorderRadius;
-  }
-
-  // Set hexMap global
-  hexMap = generateHexMap(mapRadius);
-  hexMap.forEach(tile => {
-    const pos = hexToPixel(tile.q, tile.r);
-    tile.x = pos.x;
-    tile.y = pos.y;
-  });
-
-  // --------- DRAWING -----------
-
-  // Clear canvas & draw hex grid
-  function drawHex(ctx, x, y, size, fillStyle, strokeStyle, lineWidth=2) {
-    const angle_deg = 60;
-    const angle_rad = Math.PI / 180 * angle_deg;
+  // Draw a single hex at pixel position (centerX, centerY)
+  function drawHex(ctx, centerX, centerY, radius, fillStyle, strokeStyle, lineWidth = 1) {
     ctx.beginPath();
-    for(let i=0; i < 6; i++) {
-      const px = x + size * Math.cos(angle_rad * i);
-      const py = y + size * Math.sin(angle_rad * i);
-      if(i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+    for(let i=0; i<6; i++){
+      const angle = Math.PI / 180 * (60 * i - 30);
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      if(i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
     ctx.closePath();
-    if(fillStyle) {
-      ctx.fillStyle = fillStyle;
-      ctx.fill();
-    }
-    if(strokeStyle) {
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = lineWidth;
-      ctx.stroke();
-    }
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    ctx.stroke();
   }
 
-  // Draw entire map with units, forts, owners
-  function drawMap() {
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.translate(canvas.width/2 + cameraOffset.x, canvas.height/2 + cameraOffset.y);
-    ctx.scale(cameraZoom, cameraZoom);
+  // Draw grid on main canvas
+  function drawGrid() {
+    gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-    // Draw tiles
-    for(const tile of hexMap) {
-      let fill = '#2c3e50'; // default grass dark
-      if(tile.owner !== null) {
-        fill = players[tile.owner].color || '#2980b9';
-      }
-      if(tile === selectedTile) fill = '#f39c12'; // highlight selected
-      drawHex(ctx, tile.x, tile.y, hexSize - 2, fill, '#34495e', 2);
+    // Translate camera + zoom
+    gameCtx.save();
+    gameCtx.translate(camX, camY);
+    gameCtx.scale(zoom, zoom);
 
-      // Forts
-      if(tile.fort) {
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(tile.x, tile.y, hexSize/3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // Units
-      if(tile.unit) {
-        ctx.fillStyle = tile.unit.owner === currentPlayerIndex ? '#2ecc71' : '#e74c3c';
-        ctx.beginPath();
-        ctx.arc(tile.x, tile.y, hexSize/4, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    for(const hex of gridHexes){
+      const {q, r} = hex;
+      const {x, y} = hexToPixel(q, r);
+
+      // Highlight selected tile
+      let fill = '#6ab04c'; // default green grass
+      if(hex === selectedTile) fill = '#f39c12'; // orange highlight
+
+      drawHex(gameCtx, x, y, HEX_RADIUS - 1, fill, '#2c3e50', 2);
     }
 
-    ctx.restore();
+    gameCtx.restore();
+
+    // Draw tooltip and selection zoom effect handled in mouse events
   }
 
-  // Draw minimap as simplified version
+  // Draw minimap on minimapCanvas
   function drawMinimap() {
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-    const w = minimapCanvas.width;
-    const h = minimapCanvas.height;
 
-    // Draw tiles scaled down and colored by owner
-    const scale = 10;
-    const centerX = w / 2;
-    const centerY = h / 2;
+    // Calculate scale for minimap relative to main grid pixel size
+    // We'll fit the entire grid inside minimap width/height with some padding
+    const padding = 5;
+    const gridPixelWidth = HEX_WIDTH * (GRID_RADIUS * 2 + 1);
+    const gridPixelHeight = HEX_RADIUS * 1.5 * (GRID_RADIUS * 2 + 1);
 
-    for(const tile of hexMap) {
-      const x = centerX + tile.q * scale * 0.87;
-      const y = centerY + tile.r * scale * 1.5;
-      minimapCtx.beginPath();
-      minimapCtx.fillStyle = tile.owner !== null ? (players[tile.owner].color || '#2980b9') : '#2c3e50';
-      minimapCtx.strokeStyle = '#222';
-      minimapCtx.lineWidth = 1;
-      const size = 6;
-      for(let i=0; i<6; i++) {
-        const angle = Math.PI / 180 * 60 * i;
-        const px = x + size * Math.cos(angle);
-        const py = y + size * Math.sin(angle);
-        if(i === 0) minimapCtx.moveTo(px, py);
-        else minimapCtx.lineTo(px, py);
-      }
-      minimapCtx.closePath();
-      minimapCtx.fill();
-      minimapCtx.stroke();
+    const scaleX = (minimapCanvas.width - padding * 2) / gridPixelWidth;
+    const scaleY = (minimapCanvas.height - padding * 2) / gridPixelHeight;
+    const scale = Math.min(scaleX, scaleY);
+
+    minimapCtx.save();
+    minimapCtx.translate(padding, padding);
+    minimapCtx.scale(scale, scale);
+
+    // Draw all hexes smaller
+    for(const hex of gridHexes){
+      const {q, r} = hex;
+      const {x, y} = hexToPixel(q, r);
+      drawHex(minimapCtx, x, y, HEX_RADIUS / 5, '#6ab04c', '#222', 1);
     }
 
-    // Draw camera viewport rectangle on minimap
-    const camX = -cameraOffset.x / cameraZoom / hexSize / Math.sqrt(3);
-    const camY = -cameraOffset.y / cameraZoom / hexSize / 1.5;
+    // Draw viewport rectangle on minimap
+    const w = gameCanvas.width / zoom;
+    const h = gameCanvas.height / zoom;
+    const viewX = (-camX) / zoom;
+    const viewY = (-camY) / zoom;
 
-    const viewW = canvas.width / cameraZoom / (hexSize * Math.sqrt(3)) * 0.87 * 10;
-    const viewH = canvas.height / cameraZoom / (hexSize * 1.5) * 10;
+    minimapCtx.strokeStyle = 'red';
+    minimapCtx.lineWidth = 2 / scale;
+    minimapCtx.strokeRect(viewX - w/2, viewY - h/2, w, h);
 
-    minimapCtx.strokeStyle = 'yellow';
-    minimapCtx.lineWidth = 2;
-    minimapCtx.strokeRect(
-      centerX + camX * 10 * 0.87 - viewW/2,
-      centerY + camY * 10 * 1.5 - viewH/2,
-      viewW,
-      viewH
-    );
+    minimapCtx.restore();
   }
 
-  // --------- INPUT & INTERACTION ---------
+  // === UI HANDLERS ===
 
-  let mousePos = {x: 0, y: 0};
-  let isDragging = false;
+  // Update players list UI
+  function renderPlayersList() {
+    playersListDiv.innerHTML = '';
+    players.forEach((p, idx) => {
+      const div = document.createElement('div');
+      div.className = 'player-entry';
 
-  canvas.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    cameraDragStart = {x: e.clientX - cameraOffset.x, y: e.clientY - cameraOffset.y};
+      const label = document.createElement('label');
+      label.textContent = p.type === 'human' ? `Player ${p.id}` : `Bot ${p.id}`;
+      label.setAttribute('for', `playerName${p.id}`);
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `playerName${p.id}`;
+      input.value = p.name;
+      input.disabled = p.type === 'bot';
+
+      input.addEventListener('input', e => {
+        players[idx].name = e.target.value.trim();
+        validateStartButton();
+      });
+
+      div.appendChild(label);
+      div.appendChild(input);
+
+      // If bot, add difficulty selector
+      if(p.type === 'bot'){
+        const select = document.createElement('select');
+        select.innerHTML = `
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        `;
+        select.value = p.difficulty || 'medium';
+        select.addEventListener('change', e => {
+          players[idx].difficulty = e.target.value;
+        });
+        div.appendChild(select);
+      }
+
+      playersListDiv.appendChild(div);
+    });
+  }
+
+  // Validate start button enable/disable
+  function validateStartButton(){
+    // Enable start if player 1 is human and name is non-empty
+    const p1 = players.find(p => p.id === 1);
+    if(p1 && p1.type === 'human' && p1.name.length > 0){
+      startGameBtn.disabled = false;
+    } else {
+      startGameBtn.disabled = true;
+    }
+  }
+
+  // Add bot player
+  function addBot() {
+    if(players.length >= 4) return alert('Maximum 4 players allowed');
+    const nextId = players.length + 1;
+    players.push({ id: nextId, type: 'bot', name: `Bot ${nextId}`, difficulty: 'medium' });
+    renderPlayersList();
+  }
+
+  // Add human player
+  function addHuman() {
+    if(players.length >= 4) return alert('Maximum 4 players allowed');
+    const nextId = players.length + 1;
+    players.push({ id: nextId, type: 'human', name: `Player ${nextId}`, difficulty: null });
+    renderPlayersList();
+    validateStartButton();
+  }
+
+  // Theme toggle
+  function toggleTheme() {
+    if(theme === 'light'){
+      theme = 'dark';
+      document.body.classList.remove('theme-light');
+      document.body.classList.add('theme-dark');
+    } else {
+      theme = 'light';
+      document.body.classList.remove('theme-dark');
+      document.body.classList.add('theme-light');
+    }
+  }
+
+  // Instructions modal open/close
+  instructionsBtn.addEventListener('click', () => {
+    instructionsModal.style.display = 'flex';
   });
-  window.addEventListener('mouseup', () => {
+  closeInstructionsBtn.addEventListener('click', () => {
+    instructionsModal.style.display = 'none';
+  });
+
+  // Start game handler
+  startGameBtn.addEventListener('click', () => {
+    titleScreen.style.display = 'none';
+    gameScreen.style.display = 'block';
+    resizeCanvases();
+    drawGrid();
+    drawMinimap();
+  });
+
+  // Event listeners for player adding
+  addBotBtn.addEventListener('click', () => {
+    addBot();
+  });
+  addHumanBtn.addEventListener('click', () => {
+    addHuman();
+  });
+
+  // Theme switcher button
+  themeSwitcher.addEventListener('click', () => {
+    toggleTheme();
+  });
+
+  // Initial render
+  renderPlayersList();
+  validateStartButton();
+
+  // === CAMERA CONTROLS ===
+
+  gameCanvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    camStart = { x: camX, y: camY };
+  });
+  window.addEventListener('mouseup', (e) => {
     isDragging = false;
   });
   window.addEventListener('mousemove', (e) => {
-    mousePos = {x: e.clientX, y: e.clientY};
-    if(isDragging) {
-      cameraOffset.x = e.clientX - cameraDragStart.x;
-      cameraOffset.y = e.clientY - cameraDragStart.y;
-      clampCamera();
-    }
-    updateTooltip();
-  });
-  canvas.addEventListener('click', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const cx = (e.clientX - rect.left - canvas.width/2 - cameraOffset.x) / cameraZoom;
-    const cy = (e.clientY - rect.top - canvas.height/2 - cameraOffset.y) / cameraZoom;
-    const hex = pixelToHex(cx, cy);
-
-    const tile = findTile(hex.q, hex.r);
-    if(tile) {
-      selectedTile = tile;
-      // Zoom in a bit when selecting
-      cameraZoom = Math.min(cameraZoom + 0.3, cameraZoomMax);
-      clampCamera();
-      draw();
+    if(isDragging){
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      let newX = camStart.x + dx;
+      let newY = camStart.y + dy;
+      const clamped = clampCamera(newX, newY);
+      camX = clamped.x;
+      camY = clamped.y;
+      drawGrid();
+      drawMinimap();
+      updateTooltipPosition();
     }
   });
 
-  canvas.addEventListener('wheel', (e) => {
+  // Zoom with wheel
+  gameCanvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const zoomAmount = -e.deltaY * 0.0015;
-    cameraZoom = Math.min(cameraZoomMax, Math.max(cameraZoomMin, cameraZoom + zoomAmount));
-    clampCamera();
-    draw();
-  }, {passive: false});
+    const oldZoom = zoom;
+    if(e.deltaY < 0){
+      zoom = Math.min(MAX_ZOOM, zoom + ZOOM_STEP);
+    } else {
+      zoom = Math.max(MIN_ZOOM, zoom - ZOOM_STEP);
+    }
 
-  function clampCamera() {
-    // Prevent infinite scroll outside map border
-    const maxOffsetX = hexSize * Math.sqrt(3) * (mapBorderRadius + 1.5);
-    const maxOffsetY = hexSize * 1.5 * (mapBorderRadius + 1.5);
+    // Zoom towards mouse pointer
+    const rect = gameCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    cameraOffset.x = Math.min(maxOffsetX, Math.max(-maxOffsetX, cameraOffset.x));
-    cameraOffset.y = Math.min(maxOffsetY, Math.max(-maxOffsetY, cameraOffset.y));
+    // Calculate world coordinates before zoom
+    const worldXBefore = (mouseX - camX) / oldZoom;
+    const worldYBefore = (mouseY - camY) / oldZoom;
+
+    // Calculate world coordinates after zoom
+    const worldXAfter = (mouseX - camX) / zoom;
+    const worldYAfter = (mouseY - camY) / zoom;
+
+    // Adjust camX, camY so zoom centers on mouse
+    camX += (worldXAfter - worldXBefore) * zoom;
+    camY += (worldYAfter - worldYBefore) * zoom;
+
+    const clamped = clampCamera(camX, camY);
+    camX = clamped.x;
+    camY = clamped.y;
+
+    drawGrid();
+    drawMinimap();
+    updateTooltipPosition();
+  }, { passive: false });
+
+  // === TILE SELECTION & TOOLTIP ===
+
+  function updateTooltipPosition() {
+    if(selectedTile){
+      const { x, y } = hexToPixel(selectedTile.q, selectedTile.r);
+      const screenX = camX + x * zoom;
+      const screenY = camY + y * zoom;
+      tooltip.style.left = (screenX + 20) + 'px';
+      tooltip.style.top = (screenY + 20) + 'px';
+    }
   }
 
-  function updateTooltip() {
-    if(!selectedTile) {
+  gameCanvas.addEventListener('mousemove', e => {
+    const rect = gameCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    // Convert to world coords
+    const worldX = (mouseX - camX) / zoom;
+    const worldY = (mouseY - camY) / zoom;
+
+    // Find hex under mouse
+    const hexCoords = pixelToHex(worldX, worldY);
+    const hex = findHex(hexCoords.q, hexCoords.r);
+
+    if(hex){
+      tooltip.style.display = 'block';
+      tooltip.textContent = `Hex q:${hex.q}, r:${hex.r} — Terrain: ${hex.terrain}`;
+      tooltip.style.left = e.clientX + 15 + 'px';
+      tooltip.style.top = e.clientY + 15 + 'px';
+    } else {
       tooltip.style.display = 'none';
-      return;
     }
-    tooltip.style.display = 'block';
-    tooltip.style.left = (mousePos.x + 10) + 'px';
-    tooltip.style.top = (mousePos.y + 10) + 'px';
+  });
 
-    let text = `Tile: (${selectedTile.q}, ${selectedTile.r})\nType: ${selectedTile.type}`;
-    if(selectedTile.owner !== null) {
-      text += `\nOwner: ${players[selectedTile.owner].name}`;
-    }
-    if(selectedTile.fort) {
-      text += `\nFort: Yes`;
-    }
-    if(selectedTile.unit) {
-      text += `\nUnit: Owned by ${players[selectedTile.unit.owner].name}`;
-    }
+  gameCanvas.addEventListener('click', e => {
+    const rect = gameCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    tooltip.textContent = text;
+    const worldX = (mouseX - camX) / zoom;
+    const worldY = (mouseY - camY) / zoom;
+
+    const hexCoords = pixelToHex(worldX, worldY);
+    const hex = findHex(hexCoords.q, hexCoords.r);
+
+    if(hex){
+      selectedTile = hex;
+      // Zoom effect on selected tile: Here just redraw with highlight
+      drawGrid();
+      drawMinimap();
+      updateTooltipPosition();
+    }
+  });
+
+  // === BASIC AI STUB ===
+  // For each bot player, could add turn logic here
+
+  function runAITurns(){
+    players.filter(p => p.type === 'bot').forEach(bot => {
+      // Simple random move or placeholder
+      console.log(`Running AI turn for ${bot.name} difficulty ${bot.difficulty}`);
+    });
   }
 
-  // --------- GAME LOOP ---------
+  // === GAME LOOP (optional for animations or updates) ===
+  // Currently static but can add animations later
 
-  function gameLoop() {
-    draw();
-    drawMinimap();
-    updateTooltip();
-    requestAnimationFrame(gameLoop);
-  }
+  // Initial canvas sizing
+  resizeCanvases();
 
-  // --------- GAME INIT ---------
+  // Debug: Show initial update label for 3 seconds then fade
+  setTimeout(() => {
+    updateLabel.style.transition = 'opacity 2s';
+    updateLabel.style.opacity = '0';
+    setTimeout(() => updateLabel.style.display = 'none', 2000);
+  }, 3000);
 
-  function initGame() {
-    currentPlayerIndex = 0;
-    selectedTile = null;
-    cameraOffset = {x: 0, y: 0};
-    cameraZoom = 1;
-    draw();
-    drawMinimap();
-    gameLoop();
-  }
-
-  // Initial draw on load
-  draw();
-  drawMinimap();
 })();
 </script>
-
 </body>
 </html>
